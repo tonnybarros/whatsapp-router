@@ -9,12 +9,345 @@ Providers iniciais:
 - `evolution_go`
 - `evolution_api`
 
-## Rodar
+## Qual instalacao escolher?
+
+Para uma VPS/LXC simples, a melhor opcao costuma ser **sem Docker, usando Node.js + PM2**. Fica facil ver logs, editar `.env`, reiniciar o servico e integrar com Caddy/Nginx.
+
+Use **Docker/Compose** se voce quer isolar a aplicacao, padronizar deploy ou rodar em um servidor onde tudo ja e containerizado.
+
+Minha recomendacao para producao:
+
+1. **VPS ou LXC pequeno/medio**: use Node.js + PM2.
+2. **Servidor que ja roda varios containers**: use Docker Compose.
+3. **Ambiente local para desenvolvimento**: use `npm run dev`.
+
+Resumo rapido:
+
+| Cenario | Recomendacao |
+| --- | --- |
+| VPS/LXC dedicado, um unico Router | Node.js + PM2 |
+| Servidor com varios containers | Docker Compose |
+| Desenvolvimento local | `npm run dev` |
+| Producao com HTTPS | Router na porta `3025` + proxy reverso em `443` |
+
+## Instalacao recomendada: Node.js + PM2
+
+Este e o caminho mais simples para instalar em VPS/LXC, principalmente quando voce ja usa Caddy/Nginx no host.
+
+### 1. Requisitos
+
+- Node.js 20 ou superior
+- npm
+- git
+- PM2
+- Um dominio apontando para o servidor, se for publicar com HTTPS
+
+No Ubuntu/Debian, confirme Node/npm e instale o PM2:
+
+```bash
+node -v
+npm -v
+npm install -g pm2
+```
+
+Se `node -v` mostrar uma versao antiga, instale Node.js 20 ou superior antes de continuar.
+
+### 2. Baixar o projeto
+
+```bash
+cd /var/www
+git clone git@github.com:tonnybarros/whatsapp-router.git
+cd whatsapp-router
+```
+
+Se estiver instalando sem chave SSH do GitHub:
+
+```bash
+git clone https://github.com/tonnybarros/whatsapp-router.git
+cd whatsapp-router
+```
+
+### 3. Instalar dependencias
+
+```bash
+npm ci
+```
+
+Use `npm ci` em producao porque ele instala exatamente as versoes do `package-lock.json`. Para desenvolvimento local, `npm install` tambem funciona.
+
+### 4. Criar o `.env`
+
+```bash
+cp .env.example .env
+```
+
+Gere um token forte para proteger a API:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+Edite o arquivo:
+
+```bash
+nano .env
+```
+
+Configuracao minima:
+
+```env
+PORT=3025
+HOST=0.0.0.0
+ROUTER_API_KEY=troque-por-um-token-forte
+DATA_FILE=./data/router.json
+DEFAULT_DAILY_LIMIT=50
+DEFAULT_MIN_SECONDS_BETWEEN_MESSAGES=60
+DEFAULT_ERROR_COOLDOWN_SECONDS=900
+SEND_TIMEOUT_MS=30000
+QUEUE_POLL_MS=1000
+QUEUE_MAX_WAIT_MS=900000
+```
+
+Cole o token gerado em `ROUTER_API_KEY`. Esse token e a chave que suas automacoes, n8n e sistemas externos vao enviar no header `X-Router-Key`.
+
+Campos importantes:
+
+| Variavel | Funcao |
+| --- | --- |
+| `PORT` | Porta HTTP interna do Router. Padrao: `3025`. |
+| `HOST` | Use `0.0.0.0` em servidor. Use `127.0.0.1` se apenas proxy local puder acessar. |
+| `ROUTER_API_KEY` | Chave exigida no header `X-Router-Key`. Gere uma chave forte. |
+| `DATA_FILE` | Arquivo JSON onde ficam conectores, mensagens e eventos. |
+| `DEFAULT_DAILY_LIMIT` | Limite diario padrao por conector. |
+| `DEFAULT_MIN_SECONDS_BETWEEN_MESSAGES` | Intervalo minimo padrao entre mensagens por conector. |
+| `DEFAULT_ERROR_COOLDOWN_SECONDS` | Tempo de cooldown quando um provider falha. |
+| `SEND_TIMEOUT_MS` | Timeout de envio para as APIs externas. |
+| `QUEUE_POLL_MS` | Intervalo base de checagem da fila. |
+| `QUEUE_MAX_WAIT_MS` | Tempo maximo que uma mensagem pode esperar na fila. |
+
+### 5. Testar antes de subir em producao
+
+```bash
+npm run check
+```
+
+Agora inicie temporariamente:
+
+```bash
+npm start
+```
+
+Em outro terminal, teste:
+
+```bash
+curl http://127.0.0.1:3025/health
+```
+
+Se respondeu JSON com `"ok": true`, esta funcionando.
+
+### 6. Rodar com PM2
+
+```bash
+pm2 start ecosystem.config.cjs
+pm2 save
+pm2 status
+```
+
+Logs:
+
+```bash
+pm2 logs whatsapp-router
+```
+
+Reiniciar apos alteracoes:
+
+```bash
+pm2 restart whatsapp-router --update-env
+```
+
+Subir automaticamente apos reboot do servidor:
+
+```bash
+pm2 startup
+pm2 save
+```
+
+O comando `pm2 startup` normalmente mostra uma linha extra para executar com `sudo`. Copie e execute a linha que ele mostrar.
+
+### 7. Publicar com HTTPS
+
+O Router nao precisa escutar direto na porta `443`. O recomendado e deixar o Router em `3025` e usar Caddy/Nginx como proxy reverso.
+
+Exemplo Caddy:
+
+```caddy
+api.seudominio.com.br {
+  reverse_proxy 127.0.0.1:3025
+}
+```
+
+Exemplo Nginx:
+
+```nginx
+server {
+  listen 443 ssl http2;
+  server_name api.seudominio.com.br;
+
+  location / {
+    proxy_pass http://127.0.0.1:3025;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+}
+```
+
+### 8. Primeiro acesso
+
+- Admin: `https://api.seudominio.com.br/admin`
+- Docs: `https://api.seudominio.com.br/docs`
+- Swagger: `https://api.seudominio.com.br/swagger`
+- Health: `https://api.seudominio.com.br/health`
+
+No admin, entre usando o valor de `ROUTER_API_KEY`.
+
+Depois disso:
+
+1. Crie um conector para cada API/numero.
+2. Use o teste com `dry_run` primeiro, para validar selecao sem enviar mensagem real.
+3. Envie um teste real.
+4. Nas suas automacoes, chame `/api/v1/messages/send` com `queue=true`, `failover=true` e `failover_mode=safe`.
+
+### 9. Atualizar sem Docker
+
+```bash
+cd /var/www/whatsapp-router
+git pull
+npm ci
+npm run check
+pm2 restart whatsapp-router --update-env
+```
+
+Se voce instalou em outro diretorio, ajuste o `cd`.
+
+## Instalacao com Docker Compose
+
+Use este caminho se voce prefere container, ou se o servidor ja tem outros servicos em Docker.
+
+### 1. Requisitos
+
+- Docker
+- Docker Compose v2
+- git
+
+Teste:
+
+```bash
+docker --version
+docker compose version
+```
+
+### 2. Preparar arquivos
+
+```bash
+git clone https://github.com/tonnybarros/whatsapp-router.git
+cd whatsapp-router
+cp .env.example .env
+```
+
+Edite o `.env` e defina pelo menos:
+
+```env
+ROUTER_API_KEY=troque-por-um-token-forte
+PORT=3025
+```
+
+Gere o token assim:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+Se o servidor nao tiver Node.js fora do Docker, use:
+
+```bash
+openssl rand -hex 32
+```
+
+No Docker Compose, o projeto ja sobrescreve:
+
+```env
+HOST=0.0.0.0
+DATA_FILE=/app/data/router.json
+```
+
+### 3. Subir o container
+
+```bash
+docker compose up -d --build
+```
+
+Ver logs:
+
+```bash
+docker compose logs -f whatsapp-router
+```
+
+Testar:
+
+```bash
+curl http://127.0.0.1:3025/health
+```
+
+Parar:
+
+```bash
+docker compose down
+```
+
+Atualizar:
+
+```bash
+git pull
+docker compose up -d --build
+```
+
+Os dados ficam persistidos em:
+
+```text
+./data/router.json
+```
+
+Para publicar com HTTPS usando Docker, mantenha o container na porta `3025` e use Caddy/Nginx no host apontando para `127.0.0.1:3025`, igual ao exemplo da instalacao sem Docker.
+
+## Desenvolvimento local
 
 ```bash
 npm install
 cp .env.example .env
-npm start
+npm run dev
+```
+
+## Backup
+
+Faca backup regular do arquivo:
+
+```text
+data/router.json
+```
+
+Ele contem conectores cadastrados, historico de mensagens e eventos. O `.env` tambem deve ser guardado com seguranca, porque contem `ROUTER_API_KEY`.
+
+Arquivos que voce deve proteger e nunca publicar:
+
+- `.env`
+- `data/router.json`
+
+Exemplo simples de backup:
+
+```bash
+tar -czf whatsapp-router-backup-$(date +%F).tar.gz .env data/router.json
 ```
 
 ## Autenticação

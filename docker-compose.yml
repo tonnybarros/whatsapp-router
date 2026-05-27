@@ -1,0 +1,20 @@
+services:
+  whatsapp-router:
+    build: .
+    container_name: whatsapp-router
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      HOST: 0.0.0.0
+      DATA_FILE: /app/data/router.json
+    ports:
+      - "3025:3025"
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3025/health >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s

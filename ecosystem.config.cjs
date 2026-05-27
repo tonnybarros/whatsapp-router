@@ -3,7 +3,7 @@ module.exports = {
     {
       name: "whatsapp-router",
       script: "src/server.js",
-      cwd: "/var/www/sse/whatsapp-router",
+      cwd: __dirname,
       env: {
         NODE_ENV: "production"
       }
