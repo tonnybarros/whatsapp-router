@@ -99,9 +99,22 @@ async function resolveWahaChatId(instance, to) {
       throw error;
     }
 
-    return result.data?.chatId || wahaChatId(to);
+    const chatId = result.data?.chatId || wahaChatId(to);
+    if (instance.engine === "gows" && onlyDigits(chatId) !== phone) {
+      const error = new Error("WAHA/GOWS nao encontrou LID e normalizou o numero para outro chatId; usando failover para evitar destino incorreto.");
+      error.status = 409;
+      error.retryable = true;
+      error.data = {
+        phone,
+        chatId,
+        numberExists: result.data?.numberExists
+      };
+      throw error;
+    }
+
+    return chatId;
   } catch (error) {
-    if (error.status === 422) throw error;
+    if (error.status === 409 || error.status === 422) throw error;
     return wahaChatId(to);
   }
 }

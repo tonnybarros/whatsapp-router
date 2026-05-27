@@ -90,13 +90,20 @@ function markProviderFailure(instance, error) {
 function isFailoverRetryable(error, body) {
   if (!body.failover) return false;
   if (body.failover_mode === "aggressive") return !error.status || error.status >= 500;
-  return Boolean((error.transport_error && error.retryable) || providerDisconnected(error));
+  return Boolean(error.retryable || (error.transport_error && error.retryable) || providerDisconnected(error) || providerRejectedBeforeSend(error));
 }
 
 function providerDisconnected(error) {
   if (error.status !== 503) return false;
   const message = String(error.data?.message || error.data?.error || "").toLowerCase();
   return message.includes("disconnected") || message.includes("desconect");
+}
+
+function providerRejectedBeforeSend(error) {
+  if (error.status !== 500) return false;
+  const message = String(error.data?.exception?.message || error.data?.exception?.details || error.data?.message || "").toLowerCase();
+  const engine = String(error.data?.version?.engine || "").toLowerCase();
+  return engine === "gows" && message.includes("server returned error 400");
 }
 
 function attemptEntry(instance, status, extra = {}) {
