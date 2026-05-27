@@ -452,11 +452,29 @@ export function adminHtml() {
     }
 
     function messageError(item) {
-      if (!item.error) return '-';
+      if (!item.error) return attemptErrors(item);
       if (Array.isArray(item.error.rejected) && item.error.rejected.length) {
         return item.error.rejected.map((rejected) => rejected.name + ': ' + reasonLabel(rejected.reason)).join(' / ');
       }
       return item.error.message || item.error.data?.exception?.message || item.error.data?.error || item.error.data?.message || JSON.stringify(item.error);
+    }
+
+    function attemptErrors(item) {
+      if (!Array.isArray(item.attempts) || item.attempts.length === 0) return '-';
+      const failures = item.attempts.filter((attempt) => attempt.error);
+      if (failures.length === 0) return '-';
+      return failures.map((attempt) => {
+        const name = attempt.instance_name || attempt.provider || attempt.instance_id || '-';
+        return name + ': ' + errorText(attempt.error);
+      }).join(' / ');
+    }
+
+    function errorText(error) {
+      if (!error) return '-';
+      if (Array.isArray(error.rejected) && error.rejected.length) {
+        return error.rejected.map((rejected) => rejected.name + ': ' + reasonLabel(rejected.reason)).join(' / ');
+      }
+      return error.message || error.data?.exception?.message || error.data?.error || error.data?.message || JSON.stringify(error);
     }
 
     function reasonLabel(reason) {
