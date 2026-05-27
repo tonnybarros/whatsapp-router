@@ -375,7 +375,7 @@ function htmlDashboard() {
     header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
     h1 { margin: 0; font-size: 28px; letter-spacing: 0; }
     p { margin: 6px 0 0; color: #4b5563; }
-    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
     .card, table { background: #fff; border: 1px solid #d8dee8; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
     .card { padding: 16px; }
     .metric { font-size: 26px; font-weight: 700; margin-top: 6px; }
@@ -403,6 +403,7 @@ function htmlDashboard() {
       <div class="card"><div>Instâncias</div><div class="metric" id="instances">-</div></div>
       <div class="card"><div>Ativas</div><div class="metric" id="active">-</div></div>
       <div class="card"><div>Mensagens recentes</div><div class="metric" id="messages">-</div></div>
+      <div class="card"><div>Versão</div><div class="metric" id="version">-</div></div>
     </section>
     <table>
       <thead><tr><th>Nome</th><th>Provider</th><th>Status</th><th>Uso hoje</th><th>Último envio</th></tr></thead>
@@ -411,10 +412,12 @@ function htmlDashboard() {
   </main>
   <script>
     async function load() {
-      const health = await fetch('/health').then((r) => r.json());
+      const basePath = window.location.pathname.startsWith('/v1') ? '/v1' : '';
+      const health = await fetch(basePath + '/health').then((r) => r.json());
       document.querySelector('#instances').textContent = health.instances.total;
       document.querySelector('#active').textContent = health.instances.active;
       document.querySelector('#messages').textContent = health.messages.total;
+      document.querySelector('#version').textContent = health.version || '-';
       const rows = health.instances.items.map((item) => '<tr><td>' + item.name + '</td><td>' + item.provider + '</td><td><span class="status ' + item.status + '">' + item.status + '</span></td><td>' + item.daily_sent_count + '/' + item.daily_limit + '</td><td>' + (item.last_sent_at || '-') + '</td></tr>').join('');
       document.querySelector('#rows').innerHTML = rows || '<tr><td colspan="5">Nenhuma instância cadastrada ainda.</td></tr>';
     }
