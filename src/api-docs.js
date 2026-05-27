@@ -42,6 +42,70 @@ export function apiDocsHtml() {
     </section>
 
     <section>
+      <h2>Instalação Recomendada</h2>
+      <p>Para VPS ou LXC, o caminho mais simples é rodar com Node.js + PM2 e deixar o HTTPS no Caddy/Nginx. Use Docker Compose quando o servidor já trabalha com containers.</p>
+      <table>
+        <thead><tr><th>Cenário</th><th>Melhor caminho</th></tr></thead>
+        <tbody>
+          <tr><td>VPS/LXC dedicado</td><td>Node.js + PM2</td></tr>
+          <tr><td>Servidor com vários containers</td><td>Docker Compose</td></tr>
+          <tr><td>Desenvolvimento local</td><td><code>npm run dev</code></td></tr>
+          <tr><td>Produção com HTTPS</td><td>Router na porta <code>3025</code> + proxy reverso em <code>443</code></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Instalar Sem Docker</h2>
+      <pre>cd /var/www
+git clone https://github.com/tonnybarros/whatsapp-router.git
+cd whatsapp-router
+npm ci
+cp .env.example .env
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+nano .env
+npm run check
+pm2 start ecosystem.config.cjs
+pm2 save</pre>
+      <p>No <code>.env</code>, defina <code>ROUTER_API_KEY</code> com o token gerado. Esse é o token usado por n8n, Whazap e outros sistemas no header <code>X-Router-Key</code>.</p>
+      <pre>PORT=3025
+HOST=0.0.0.0
+ROUTER_API_KEY=troque-por-um-token-forte
+DATA_FILE=./data/router.json</pre>
+    </section>
+
+    <section>
+      <h2>Instalar Com Docker Compose</h2>
+      <pre>git clone https://github.com/tonnybarros/whatsapp-router.git
+cd whatsapp-router
+cp .env.example .env
+openssl rand -hex 32
+nano .env
+docker compose up -d --build
+docker compose logs -f whatsapp-router</pre>
+      <p>No Docker, os dados ficam persistidos em <code>./data/router.json</code>. Faça backup desse arquivo e do <code>.env</code>.</p>
+    </section>
+
+    <section>
+      <h2>Proxy HTTPS</h2>
+      <p>O Router não precisa abrir a porta <code>443</code>. Deixe o serviço na porta <code>3025</code> e publique com Caddy ou Nginx.</p>
+      <pre>api.seudominio.com.br {
+  reverse_proxy 127.0.0.1:3025
+}</pre>
+      <p>Depois de publicar, acesse <code>/admin</code>, entre com o <code>ROUTER_API_KEY</code>, cadastre os conectores e teste com <code>dry_run</code> antes do envio real.</p>
+    </section>
+
+    <section>
+      <h2>Atualizar e Backup</h2>
+      <pre>git pull
+npm ci
+npm run check
+pm2 restart whatsapp-router --update-env</pre>
+      <p>Arquivos que devem ser protegidos e nunca publicados: <code>.env</code> e <code>data/router.json</code>.</p>
+      <pre>tar -czf whatsapp-router-backup-$(date +%F).tar.gz .env data/router.json</pre>
+    </section>
+
+    <section>
       <h2>Endpoints Para Automação</h2>
       <table>
         <thead><tr><th>Método</th><th>Rota</th><th>Uso</th></tr></thead>

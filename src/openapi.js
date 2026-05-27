@@ -4,7 +4,38 @@ export function openApiSpec() {
     info: {
       title: "WhatsApp Router API",
       version: "1.0.0",
-      description: "API para enviar mensagens WhatsApp por conectores uazapi, WAHA, Evolution Go e Evolution API."
+      description: `API para enviar mensagens WhatsApp por conectores uazapi, WAHA, Evolution Go e Evolution API.
+
+## Instalação
+
+Para VPS/LXC, o recomendado é **Node.js + PM2**:
+
+\`\`\`bash
+git clone https://github.com/tonnybarros/whatsapp-router.git
+cd whatsapp-router
+npm ci
+cp .env.example .env
+npm run check
+pm2 start ecosystem.config.cjs
+pm2 save
+\`\`\`
+
+Para Docker Compose:
+
+\`\`\`bash
+git clone https://github.com/tonnybarros/whatsapp-router.git
+cd whatsapp-router
+cp .env.example .env
+docker compose up -d --build
+\`\`\`
+
+No \`.env\`, configure \`ROUTER_API_KEY\`. Esse é o token usado no header \`X-Router-Key\` ou em \`Authorization: Bearer\`.
+
+Documentação completa: [abrir /docs](/docs).`
+    },
+    externalDocs: {
+      description: "Documentação completa, instalação, exemplos e campos do JSON",
+      url: "/docs"
     },
     servers: [
       { url: "https://api.tectonny.com.br", description: "Produção" },
