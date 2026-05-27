@@ -51,7 +51,7 @@ export function adminHtml() {
     .login-body { display: grid; gap: 14px; padding: 22px 24px 24px; }
 
     .app { display: grid; grid-template-columns: 280px minmax(0, 1fr); min-height: 100vh; }
-    .sidebar { background: #182230; color: #e6edf5; padding: 18px 14px; display: grid; grid-template-rows: auto auto 1fr auto; gap: 16px; }
+    .sidebar { background: #182230; color: #e6edf5; padding: 18px 14px; display: grid; grid-template-rows: auto auto auto 1fr auto; gap: 16px; }
     .brand { padding: 4px 8px 14px; border-bottom: 1px solid rgba(255,255,255,.12); }
     .brand h1 { margin: 0; font-size: 19px; letter-spacing: 0; }
     .brand p { margin: 5px 0 0; color: #a9b7c7; font-size: 13px; }
@@ -147,12 +147,12 @@ export function adminHtml() {
           <div class="side-section-title">Conectores</div>
           <div id="connectorNav" class="nav-list"></div>
         </div>
-        <div></div>
         <div class="sidebar-foot">
-          <div class="app-version">Versão <strong id="appVersion">-</strong></div>
           <button id="newConnector" class="ghost" type="button">Novo Conector</button>
           <button id="logout" class="ghost" type="button">Sair</button>
         </div>
+        <div></div>
+        <div class="app-version">Versão <strong id="appVersion">-</strong></div>
       </aside>
 
       <section class="content">
