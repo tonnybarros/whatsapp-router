@@ -276,7 +276,7 @@ export function adminHtml() {
       { id: 'evolution_api', name: 'Evolution API', base_url: 'https://evolution.seudominio.com', send_path: '', health_path: '', session: '', instance: 'minha-instancia' }
     ];
 
-    const state = { instances: [], messages: [], health: null, selectedId: null, view: 'config', page: 'realtime', refreshing: false };
+    const state = { instances: [], messages: [], health: null, selectedId: null, view: 'config', page: 'realtime', refreshing: false, formDirty: false };
     const $ = (id) => document.getElementById(id);
 
     function key() { return localStorage.getItem('routerKey') || ''; }
@@ -392,12 +392,16 @@ export function adminHtml() {
         button.onclick = () => { state.page = 'realtime'; render(); };
       });
       document.querySelectorAll('[data-id]').forEach((button) => {
-        button.onclick = () => { state.page = 'connector'; state.selectedId = button.dataset.id; render(); };
+        button.onclick = () => { state.page = 'connector'; state.selectedId = button.dataset.id; state.formDirty = false; render(); };
       });
     }
 
     function renderProviderSelect() {
+      const current = $('provider').value;
       $('provider').innerHTML = providers.map((provider) => '<option value="' + provider.id + '">' + provider.name + '</option>').join('');
+      if (current && providers.some((provider) => provider.id === current)) {
+        $('provider').value = current;
+      }
       $('provider').onchange = () => {
         const meta = providerMeta($('provider').value);
         $('base_url').placeholder = meta.base_url;
@@ -415,19 +419,22 @@ export function adminHtml() {
       $('pageSubtitle').textContent = item ? providerMeta(item.provider).name + ' · ' + item.base_url : 'Cadastre uma API para começar.';
       $('connectorHeading').textContent = item ? 'Configuração de ' + item.name : 'Novo Conector';
 
-      $('instanceId').value = item?.id || '';
-      $('name').value = item?.name || '';
-      $('provider').value = item?.provider || 'uazapi';
-      $('base_url').value = item?.base_url || '';
-      $('api_key').value = '';
-      $('api_key').required = isNew;
-      $('session').value = item?.session || providerMeta($('provider').value).session || '';
-      $('instance').value = item?.instance || providerMeta($('provider').value).instance || '';
-      $('daily_limit').value = item?.daily_limit || 50;
-      $('min_seconds_between_messages').value = item?.min_seconds_between_messages || 60;
-      $('send_path').value = item?.send_path || '';
-      $('health_path').value = item?.health_path || '';
-      $('notes').value = item?.notes || '';
+      if (!state.formDirty) {
+        $('instanceId').value = item?.id || '';
+        $('name').value = item?.name || '';
+        $('provider').value = item?.provider || 'uazapi';
+        $('base_url').value = item?.base_url || '';
+        $('api_key').value = '';
+        $('api_key').required = isNew;
+        $('session').value = item?.session || providerMeta($('provider').value).session || '';
+        $('instance').value = item?.instance || providerMeta($('provider').value).instance || '';
+        $('daily_limit').value = item?.daily_limit || 50;
+        $('min_seconds_between_messages').value = item?.min_seconds_between_messages || 60;
+        $('send_path').value = item?.send_path || '';
+        $('health_path').value = item?.health_path || '';
+        $('notes').value = item?.notes || '';
+        $('provider').onchange();
+      }
 
       $('sStatus').innerHTML = item ? badge(item.status) : '-';
       $('sHealth').innerHTML = item ? badge(item.health) : '-';
@@ -442,7 +449,6 @@ export function adminHtml() {
       $('pauseBtn').disabled = isNew;
       $('deleteBtn').disabled = isNew;
       $('sendForm').querySelector('button').disabled = isNew;
-      $('provider').onchange();
     }
 
     function messageError(item) {
@@ -575,6 +581,7 @@ export function adminHtml() {
       state.selectedId = null;
       state.view = 'config';
       state.page = 'connector';
+      state.formDirty = false;
       render();
       setNotice('Novo conector.', '');
     }
@@ -598,6 +605,8 @@ export function adminHtml() {
     $('refresh').onclick = () => loadAll().catch((error) => setNotice(error.message, 'err'));
     $('newConnector').onclick = newConnector;
     $('messageFilter').onchange = renderGlobalMessages;
+    $('instanceForm').addEventListener('input', () => { state.formDirty = true; });
+    $('instanceForm').addEventListener('change', () => { state.formDirty = true; });
 
     document.querySelectorAll('.tab').forEach((button) => {
       button.onclick = () => { state.view = button.dataset.view; renderView(); };
@@ -609,6 +618,7 @@ export function adminHtml() {
       try {
         const saved = await api('/instances', { method: 'POST', body: JSON.stringify(formData()) });
         state.selectedId = saved.id;
+        state.formDirty = false;
         await loadAll();
         setNotice('Conector salvo.', 'ok');
       } catch (error) {
