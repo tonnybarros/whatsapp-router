@@ -62,11 +62,70 @@ export function apiDocsHtml() {
   "to": "5599999999999",
   "message": "Mensagem enviada pelo n8n",
   "source": "n8n",
+  "queue": true,
+  "failover": true,
+  "fallback_allowed": true,
+  "failover_mode": "safe",
   "dry_run": false,
   "connector_id": "opcional-id-do-conector",
   "external_id": "pedido-123"
 }</pre>
       <p><code>message</code> também pode ser enviado como <code>text</code>. Se <code>connector_id</code> não for informado, o router escolhe automaticamente a instância elegível mais antiga.</p>
+    </section>
+
+    <section>
+      <h2>Campos do JSON de Envio</h2>
+      <table>
+        <thead><tr><th>Campo</th><th>Tipo</th><th>Obrigatório</th><th>Função</th></tr></thead>
+        <tbody>
+          <tr><td><code>to</code></td><td><code>string</code></td><td>Sim</td><td>Destino no formato DDI + DDD + número. Exemplo: <code>5511999999999</code>.</td></tr>
+          <tr><td><code>message</code></td><td><code>string</code></td><td>Sim*</td><td>Texto que será enviado.</td></tr>
+          <tr><td><code>text</code></td><td><code>string</code></td><td>Sim*</td><td>Alias de <code>message</code>. Use um ou outro.</td></tr>
+          <tr><td><code>source</code></td><td><code>string</code></td><td>Não</td><td>Origem exibida no painel. Exemplo: <code>n8n</code>, <code>whazap</code>, <code>financeiro</code>.</td></tr>
+          <tr><td><code>queue</code></td><td><code>boolean</code></td><td>Não</td><td>Quando <code>true</code>, coloca na fila e responde <code>202</code>. Recomendado para lotes.</td></tr>
+          <tr><td><code>dry_run</code></td><td><code>boolean</code></td><td>Não</td><td>Testa seleção/roteamento sem envio real.</td></tr>
+          <tr><td><code>connector_id</code></td><td><code>string</code></td><td>Não</td><td>Força um conector específico. Se vazio, o Router escolhe automaticamente.</td></tr>
+          <tr><td><code>instance_id</code></td><td><code>string</code></td><td>Não</td><td>Alias legado de <code>connector_id</code>.</td></tr>
+          <tr><td><code>fallback_allowed</code></td><td><code>boolean</code></td><td>Não</td><td>Permite trocar de conector se o preferido estiver inelegível.</td></tr>
+          <tr><td><code>failover</code></td><td><code>boolean</code></td><td>Não</td><td>Permite tentar outro conector quando uma tentativa falha de forma segura.</td></tr>
+          <tr><td><code>failover_mode</code></td><td><code>string</code></td><td>Não</td><td><code>safe</code> evita duplicidade. <code>aggressive</code> também retenta 5xx, com risco de duplicar.</td></tr>
+          <tr><td><code>external_id</code></td><td><code>string</code></td><td>Não</td><td>ID externo para rastrear pedido, usuário ou execução do n8n.</td></tr>
+          <tr><td><code>track_id</code></td><td><code>string</code></td><td>Não</td><td>Alias legado de <code>external_id</code>.</td></tr>
+          <tr><td><code>priority</code></td><td><code>string</code></td><td>Não</td><td>Campo informativo para futuras regras de prioridade.</td></tr>
+          <tr><td><code>delay</code></td><td><code>number</code></td><td>Não</td><td>Enviado ao provider quando ele suporta atraso interno.</td></tr>
+          <tr><td><code>linkPreview</code></td><td><code>boolean</code></td><td>Não</td><td>Controla preview de links nos providers que suportam essa opção.</td></tr>
+        </tbody>
+      </table>
+      <p>*Envie <code>message</code> ou <code>text</code>.</p>
+    </section>
+
+    <section>
+      <h2>Campos da Resposta</h2>
+      <table>
+        <thead><tr><th>Campo</th><th>Função</th></tr></thead>
+        <tbody>
+          <tr><td><code>id</code></td><td>ID interno da mensagem no Router.</td></tr>
+          <tr><td><code>external_id</code></td><td>ID enviado pela sua aplicação para rastrear a mensagem fora do Router.</td></tr>
+          <tr><td><code>to</code></td><td>Destino solicitado.</td></tr>
+          <tr><td><code>message</code></td><td>Texto solicitado.</td></tr>
+          <tr><td><code>source</code></td><td>Origem registrada.</td></tr>
+          <tr><td><code>priority</code></td><td>Prioridade informada ou <code>normal</code>.</td></tr>
+          <tr><td><code>status</code></td><td>Estado atual: <code>queued</code>, <code>processing</code>, <code>selected</code>, <code>sent</code>, <code>dry_run</code> ou <code>failed</code>.</td></tr>
+          <tr><td><code>requested_connector_id</code></td><td>Conector solicitado no payload, quando informado.</td></tr>
+          <tr><td><code>selected_instance_id</code></td><td>Conector realmente escolhido para a tentativa atual/final.</td></tr>
+          <tr><td><code>provider</code></td><td>API usada: <code>uazapi</code>, <code>waha</code>, <code>evolution_go</code> ou <code>evolution_api</code>.</td></tr>
+          <tr><td><code>dry_run</code></td><td>Indica teste sem envio real.</td></tr>
+          <tr><td><code>queued</code></td><td>Indica que a mensagem entrou pela fila.</td></tr>
+          <tr><td><code>fallback_allowed</code></td><td>Mostra se a chamada permitia trocar de conector.</td></tr>
+          <tr><td><code>failover</code></td><td>Mostra se a chamada permitia retentativa em outro conector.</td></tr>
+          <tr><td><code>failover_mode</code></td><td>Modo de failover usado: <code>safe</code> ou <code>aggressive</code>.</td></tr>
+          <tr><td><code>attempts</code></td><td>Lista de tentativas com conector, API, status, horário e erro quando houver.</td></tr>
+          <tr><td><code>provider_response</code></td><td>Resposta bruta do provider em caso de sucesso, com dados sensíveis mascarados.</td></tr>
+          <tr><td><code>error</code></td><td>Detalhes da falha quando não envia ou não há conector elegível.</td></tr>
+          <tr><td><code>created_at</code></td><td>Data/hora UTC de criação.</td></tr>
+          <tr><td><code>updated_at</code></td><td>Data/hora UTC da última atualização, quando houver.</td></tr>
+        </tbody>
+      </table>
     </section>
 
     <section>
@@ -90,7 +149,7 @@ export function apiDocsHtml() {
           <tr><th>URL</th><td><code>https://api.tectonny.com.br/api/v1/messages/send</code></td></tr>
           <tr><th>Headers</th><td><code>X-Router-Key</code>: seu token<br><code>Content-Type</code>: <code>application/json</code></td></tr>
           <tr><th>Body Content Type</th><td><code>JSON</code></td></tr>
-          <tr><th>Body</th><td><code>{"to":"{{$json.phone}}","message":"{{$json.message}}","source":"n8n"}</code></td></tr>
+          <tr><th>Body</th><td><code>{"to":"{{$json.phone}}","message":"{{$json.message}}","source":"n8n","queue":true,"failover":true,"fallback_allowed":true,"failover_mode":"safe"}</code></td></tr>
         </tbody>
       </table>
     </section>

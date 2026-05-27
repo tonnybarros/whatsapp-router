@@ -50,7 +50,8 @@ export function openApiSpec() {
             },
             source: {
               type: "string",
-              example: "swagger"
+              example: "swagger",
+              description: "Origem da chamada para auditoria no painel. Exemplos: n8n, whazap, swagger."
             },
             dry_run: {
               type: "boolean",
@@ -85,7 +86,8 @@ export function openApiSpec() {
             },
             external_id: {
               type: "string",
-              example: "pedido-123"
+              example: "pedido-123",
+              description: "ID externo para rastrear a mensagem no seu sistema. Exemplo: pedido, usuario ou execution id do n8n."
             }
           },
           anyOf: [
@@ -101,15 +103,15 @@ export function openApiSpec() {
             to: { type: "string" },
             message: { type: "string" },
             source: { type: "string" },
-            status: { type: "string", example: "dry_run" },
-            selected_instance_id: { type: "string", nullable: true },
-            requested_connector_id: { type: "string", nullable: true },
-            provider: { type: "string", nullable: true },
-            dry_run: { type: "boolean" },
-            queued: { type: "boolean" },
-            fallback_allowed: { type: "boolean" },
-            failover: { type: "boolean" },
-            failover_mode: { type: "string", nullable: true },
+            status: { type: "string", example: "dry_run", description: "Status atual: queued, processing, selected, sent, dry_run ou failed." },
+            selected_instance_id: { type: "string", nullable: true, description: "Conector escolhido para a tentativa atual/final." },
+            requested_connector_id: { type: "string", nullable: true, description: "Conector solicitado no payload, quando informado." },
+            provider: { type: "string", nullable: true, description: "Provider usado na tentativa final." },
+            dry_run: { type: "boolean", description: "Indica teste sem envio real." },
+            queued: { type: "boolean", description: "Indica que a mensagem entrou pela fila." },
+            fallback_allowed: { type: "boolean", description: "Indica se a chamada permitia trocar de conector." },
+            failover: { type: "boolean", description: "Indica se a chamada permitia retentativa em outro conector." },
+            failover_mode: { type: "string", nullable: true, description: "Modo de failover usado: safe ou aggressive." },
             attempts: {
               type: "array",
               items: {
