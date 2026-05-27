@@ -447,7 +447,26 @@ export function adminHtml() {
 
     function messageError(item) {
       if (!item.error) return '-';
+      if (Array.isArray(item.error.rejected) && item.error.rejected.length) {
+        return item.error.rejected.map((rejected) => rejected.name + ': ' + reasonLabel(rejected.reason)).join(' / ');
+      }
       return item.error.message || item.error.data?.exception?.message || item.error.data?.error || item.error.data?.message || JSON.stringify(item.error);
+    }
+
+    function reasonLabel(reason) {
+      if (!reason) return '-';
+      const text = String(reason);
+      if (text.startsWith('cooldown ate ')) {
+        return 'em cooldown até ' + formatDateTime(text.replace('cooldown ate ', ''));
+      }
+      if (text.startsWith('intervalo minimo ')) return 'aguardando intervalo mínimo de ' + text.replace('intervalo minimo ', '');
+      if (text.startsWith('limite diario ')) return 'limite diário ' + text.replace('limite diario ', '');
+      if (text.startsWith('status=')) return 'status ' + statusLabel(text.replace('status=', ''));
+      if (text === 'api_key ausente') return 'token ausente';
+      if (text === 'base_url ausente') return 'URL da API ausente';
+      if (text === 'instancia nao encontrada') return 'instância não encontrada';
+      if (text === 'tentativa anterior falhou') return 'tentativa anterior falhou';
+      return text;
     }
 
     function statusLabel(status) {

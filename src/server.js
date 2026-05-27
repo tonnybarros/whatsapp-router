@@ -181,6 +181,9 @@ async function drainQueue() {
 function serviceHealth() {
   const instances = store.listInstances().map((instance) => {
     resetDailyCounterIfNeeded(instance);
+    if (instance.cooldown_until && new Date(instance.cooldown_until).getTime() <= Date.now()) {
+      instance.cooldown_until = null;
+    }
     return publicInstance(instance);
   });
 
@@ -281,6 +284,7 @@ async function deliverMessage(message, body, text, options = {}) {
       instance.last_sent_at = new Date().toISOString();
       instance.daily_sent_count += 1;
       instance.health = "ok";
+      instance.cooldown_until = null;
       instance.last_error = null;
       instance.updated_at = new Date().toISOString();
       message.status = "sent";
