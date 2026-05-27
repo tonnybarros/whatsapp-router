@@ -90,7 +90,13 @@ function markProviderFailure(instance, error) {
 function isFailoverRetryable(error, body) {
   if (!body.failover) return false;
   if (body.failover_mode === "aggressive") return !error.status || error.status >= 500;
-  return Boolean(error.transport_error && error.retryable);
+  return Boolean((error.transport_error && error.retryable) || providerDisconnected(error));
+}
+
+function providerDisconnected(error) {
+  if (error.status !== 503) return false;
+  const message = String(error.data?.message || error.data?.error || "").toLowerCase();
+  return message.includes("disconnected") || message.includes("desconect");
 }
 
 function attemptEntry(instance, status, extra = {}) {
