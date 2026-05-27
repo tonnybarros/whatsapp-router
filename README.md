@@ -387,10 +387,31 @@ DELETE /api/instances/:id
   "provider": "uazapi",
   "base_url": "https://sua-uazapi.com",
   "api_key": "token-da-instancia",
+  "proxy_enabled": false,
+  "proxy_url": "",
   "daily_limit": 30,
   "min_seconds_between_messages": 90
 }
 ```
+
+## Proxy por conector
+
+Cada conector pode usar um proxy HTTP/HTTPS próprio para as chamadas que o Router faz até a API cadastrada.
+
+Exemplo:
+
+```json
+{
+  "name": "waha-vendas-01",
+  "provider": "waha",
+  "base_url": "https://waha.seudominio.com",
+  "api_key": "token-da-api",
+  "proxy_enabled": true,
+  "proxy_url": "http://usuario:senha@proxy.seudominio.com:3128"
+}
+```
+
+Isso vale para envio, health check e consultas auxiliares do provider. O Router não expõe `proxy_url` na listagem pública; ele mostra apenas `has_proxy`.
 
 ## Exemplo de envio
 

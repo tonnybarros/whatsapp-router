@@ -167,12 +167,14 @@ Documentação completa: [abrir /docs](/docs).`
             name: { type: "string" },
             provider: { type: "string", enum: ["uazapi", "waha", "evolution_go", "evolution_api"] },
             base_url: { type: "string" },
+            proxy_enabled: { type: "boolean", description: "Indica se o conector deve usar proxy HTTP/HTTPS nas chamadas de saída." },
             status: { type: "string" },
             health: { type: "string" },
             daily_limit: { type: "integer" },
             daily_sent_count: { type: "integer" },
             last_sent_at: { type: "string", nullable: true },
-            has_api_key: { type: "boolean" }
+            has_api_key: { type: "boolean" },
+            has_proxy: { type: "boolean", description: "Indica se existe proxy_url salvo. O valor do proxy não é exposto." }
           }
         }
       }

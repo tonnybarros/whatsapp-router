@@ -1,4 +1,7 @@
 import { config } from "../config.js";
+import { ProxyAgent } from "undici";
+
+const proxyAgents = new Map();
 
 function trimSlash(value = "") {
   return String(value).replace(/\/+$/, "");
@@ -23,14 +26,23 @@ function sameWahaChat(to, chatId) {
   return onlyDigits(to) === onlyDigits(chatId);
 }
 
-async function requestJson(url, { method = "POST", headers, body, timeoutMs = config.sendTimeoutMs }) {
+function proxyDispatcher(instance) {
+  if (!instance?.proxy_enabled || !instance?.proxy_url) return null;
+  if (!proxyAgents.has(instance.proxy_url)) {
+    proxyAgents.set(instance.proxy_url, new ProxyAgent(instance.proxy_url));
+  }
+  return proxyAgents.get(instance.proxy_url);
+}
+
+async function requestJson(url, { method = "POST", headers, body, instance, timeoutMs = config.sendTimeoutMs }) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     let response;
     try {
-      response = await fetch(url, {
+      const dispatcher = proxyDispatcher(instance);
+      const requestOptions = {
         method,
         headers: {
           Accept: "application/json",
@@ -39,8 +51,14 @@ async function requestJson(url, { method = "POST", headers, body, timeoutMs = co
         },
         body: body ? JSON.stringify(body) : undefined,
         signal: controller.signal
-      });
+      };
+      if (dispatcher) requestOptions.dispatcher = dispatcher;
+      response = await fetch(url, requestOptions);
     } catch (error) {
+      if (instance?.proxy_enabled && instance?.proxy_url) {
+        error.message = "Falha ao conectar usando o proxy do conector";
+        error.proxy_error = true;
+      }
       error.transport_error = true;
       error.retryable = error.name !== "AbortError";
       throw error;
@@ -89,7 +107,8 @@ async function resolveWahaChatId(instance, to) {
   try {
     const result = await requestJson(url, {
       method: "GET",
-      headers: authHeader(instance, "X-Api-Key")
+      headers: authHeader(instance, "X-Api-Key"),
+      instance
     });
 
     if (result.data?.numberExists === false) {
@@ -125,7 +144,8 @@ async function resolveWahaLid(instance, phone) {
   try {
     const result = await requestJson(url, {
       method: "GET",
-      headers: authHeader(instance, "X-Api-Key")
+      headers: authHeader(instance, "X-Api-Key"),
+      instance
     });
 
     return result.data?.lid || null;
@@ -138,6 +158,7 @@ async function sendUazapi(instance, payload) {
   const url = joinUrl(instance.base_url, instance.send_path || "/send/text");
   return requestJson(url, {
     headers: authHeader(instance, "token"),
+    instance,
     body: {
       number: payload.to,
       text: payload.message,
@@ -162,6 +183,7 @@ async function sendWaha(instance, payload) {
 
   return requestJson(url, {
     headers: authHeader(instance, "X-Api-Key"),
+    instance,
     body: {
       session: instance.session || "default",
       chatId,
@@ -177,6 +199,7 @@ async function sendEvolutionGo(instance, payload) {
   try {
     return await requestJson(url, {
       headers: authHeader(instance, "apikey"),
+      instance,
       body: {
         number,
         text: payload.message,
@@ -210,6 +233,7 @@ async function checkEvolutionGoNumber(instance, to) {
   try {
     const result = await requestJson(new URL(joinUrl(instance.base_url, "/user/check")), {
       headers: authHeader(instance, "apikey"),
+      instance,
       body: { number: [onlyDigits(to)] }
     });
 
@@ -226,6 +250,7 @@ async function sendEvolutionApi(instance, payload) {
 
   return requestJson(url, {
     headers: authHeader(instance, "apikey"),
+    instance,
     body: {
       number: onlyDigits(payload.to),
       text: payload.message,
@@ -260,24 +285,16 @@ export async function checkProviderHealth(instance) {
   };
 
   const url = joinUrl(instance.base_url, instance.health_path || healthPathByProvider[instance.provider] || "/");
-  const response = await fetch(url, {
-    headers: authHeader(instance, instance.provider === "waha" ? "X-Api-Key" : instance.provider === "uazapi" ? "token" : "apikey")
-  });
-  const text = await response.text();
-
-  let data = text;
   try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = { raw: text };
-  }
-
-  if (!response.ok) {
-    const error = new Error(`Health HTTP ${response.status}`);
-    error.status = response.status;
-    error.data = data;
+    return await requestJson(url, {
+      method: "GET",
+      headers: authHeader(instance, instance.provider === "waha" ? "X-Api-Key" : instance.provider === "uazapi" ? "token" : "apikey"),
+      instance
+    });
+  } catch (error) {
+    if (error.message?.startsWith("Provider HTTP ")) {
+      error.message = error.message.replace("Provider HTTP ", "Health HTTP ");
+    }
     throw error;
   }
-
-  return { status: response.status, data };
 }

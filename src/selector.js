@@ -26,6 +26,8 @@ export function normalizeInstance(input) {
     base_url: input.base_url,
     api_key: input.api_key,
     auth_header: input.auth_header,
+    proxy_enabled: Boolean(input.proxy_enabled ?? input.proxy_url),
+    proxy_url: input.proxy_url || "",
     session: input.session,
     instance: input.instance,
     send_path: input.send_path,
