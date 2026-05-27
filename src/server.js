@@ -418,8 +418,37 @@ function htmlDashboard() {
       document.querySelector('#active').textContent = health.instances.active;
       document.querySelector('#messages').textContent = health.messages.total;
       document.querySelector('#version').textContent = health.version || '-';
-      const rows = health.instances.items.map((item) => '<tr><td>' + item.name + '</td><td>' + item.provider + '</td><td><span class="status ' + item.status + '">' + item.status + '</span></td><td>' + item.daily_sent_count + '/' + item.daily_limit + '</td><td>' + (item.last_sent_at || '-') + '</td></tr>').join('');
+      const rows = health.instances.items.map((item) => '<tr><td>' + item.name + '</td><td>' + item.provider + '</td><td><span class="status ' + item.status + '">' + statusLabel(item.status) + '</span></td><td>' + item.daily_sent_count + '/' + item.daily_limit + '</td><td>' + formatDateTime(item.last_sent_at) + '</td></tr>').join('');
       document.querySelector('#rows').innerHTML = rows || '<tr><td colspan="5">Nenhuma instância cadastrada ainda.</td></tr>';
+    }
+    function statusLabel(status) {
+      return {
+        active: 'Ativo',
+        paused: 'Pausado',
+        ok: 'OK',
+        error: 'Erro',
+        unknown: 'Desconhecido',
+        selected: 'Selecionado',
+        queued: 'Na fila',
+        processing: 'Processando',
+        sent: 'Enviado',
+        failed: 'Erro',
+        dry_run: 'Teste'
+      }[status] || status || '-';
+    }
+    function formatDateTime(value) {
+      if (!value) return '-';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value;
+      return date.toLocaleString('pt-BR', {
+        timeZone: 'America/Sao_Paulo',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
     }
     load().catch(() => document.querySelector('#rows').innerHTML = '<tr><td colspan="5">Falha ao carregar.</td></tr>');
   </script>
