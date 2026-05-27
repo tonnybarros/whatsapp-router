@@ -96,20 +96,6 @@ docker compose logs -f whatsapp-router</pre>
     </section>
 
     <section>
-      <h2>Proxy de Saída por Conector</h2>
-      <p>Cada conector pode usar um proxy HTTP/HTTPS próprio para as chamadas do Router até a API cadastrada. Isso afeta envio, health check e consultas auxiliares feitas pelo Router.</p>
-      <pre>{
-  "name": "waha-vendas-01",
-  "provider": "waha",
-  "base_url": "https://waha.seudominio.com",
-  "api_key": "token-da-api",
-  "proxy_enabled": true,
-  "proxy_url": "http://usuario:senha@proxy.seudominio.com:3128"
-}</pre>
-      <p>Credenciais de proxy não são exibidas na listagem pública. Para remover o proxy de um conector, desative <code>proxy_enabled</code> no admin e salve.</p>
-    </section>
-
-    <section>
       <h2>Atualizar e Backup</h2>
       <pre>git pull
 npm ci

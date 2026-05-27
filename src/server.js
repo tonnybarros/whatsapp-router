@@ -34,11 +34,10 @@ function runDelivery(task) {
 }
 
 function publicInstance(instance) {
-  const { api_key: _apiKey, proxy_url: _proxyUrl, ...safe } = instance;
+  const { api_key: _apiKey, ...safe } = instance;
   return {
     ...safe,
-    has_api_key: Boolean(instance.api_key),
-    has_proxy: Boolean(instance.proxy_url)
+    has_api_key: Boolean(instance.api_key)
   };
 }
 
@@ -46,7 +45,7 @@ function redactSensitive(value) {
   if (Array.isArray(value)) return value.map(redactSensitive);
   if (!value || typeof value !== "object") return value;
 
-  const sensitiveKeys = new Set(["token", "api_key", "apikey", "password", "secret", "authorization", "proxy", "proxy_url"]);
+  const sensitiveKeys = new Set(["token", "api_key", "apikey", "password", "secret", "authorization"]);
   return Object.fromEntries(Object.entries(value).map(([key, item]) => {
     if (sensitiveKeys.has(key.toLowerCase())) return [key, "[redacted]"];
     return [key, redactSensitive(item)];
@@ -72,7 +71,6 @@ function providerError(error) {
     status: error.status,
     data: redactSensitive(error.data),
     transport_error: Boolean(error.transport_error),
-    proxy_error: Boolean(error.proxy_error),
     retryable: Boolean(error.retryable),
     at: new Date().toISOString()
   };
@@ -475,8 +473,6 @@ app.register(async (api) => {
       ...existing,
       ...body,
       api_key: body.api_key || existing?.api_key,
-      proxy_enabled: Object.hasOwn(body, "proxy_enabled") ? Boolean(body.proxy_enabled) : existing?.proxy_enabled,
-      proxy_url: Object.hasOwn(body, "proxy_enabled") && !body.proxy_enabled ? "" : body.proxy_url || existing?.proxy_url || "",
       id: body.id || crypto.randomUUID()
     });
 

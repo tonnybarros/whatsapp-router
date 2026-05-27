@@ -86,8 +86,6 @@ export function adminHtml() {
     .tab.active { background: #fff; border-color: var(--line-strong); font-weight: 800; }
     .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
     .full { grid-column: 1 / -1; }
-    .check-line { min-height: 38px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: #fff; border-radius: 6px; padding: 8px 10px; color: var(--text); font-size: 14px; font-weight: 700; text-transform: none; }
-    .check-line input { width: auto; min-height: auto; padding: 0; }
     .row-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     .status-line { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
     .status-box { border: 1px solid var(--line); background: var(--surface-soft); border-radius: 8px; padding: 12px; min-height: 70px; }
@@ -213,8 +211,6 @@ export function adminHtml() {
                 <label class="full">Token/API Key <input id="api_key" type="password" placeholder="mantém token atual se vazio"></label>
                 <label>Sessão <input id="session" placeholder="default"></label>
                 <label>Instância <input id="instance" placeholder="minha-instancia"></label>
-                <label>Usar proxy <span class="check-line"><input id="proxy_enabled" type="checkbox"> Ativo</span></label>
-                <label>Proxy URL <input id="proxy_url" type="password" placeholder="mantém proxy atual se vazio"></label>
                 <label>Limite/dia <input id="daily_limit" type="number" min="1" value="50"></label>
                 <label>Intervalo mínimo <input id="min_seconds_between_messages" type="number" min="0" value="60"></label>
                 <label class="full">Send path <input id="send_path" placeholder="padrão da API"></label>
@@ -262,10 +258,6 @@ export function adminHtml() {
                 <div class="status-box"><span>API</span><strong id="sProvider">-</strong></div>
                 <div class="status-box"><span>Último Envio</span><strong id="sLastSent">-</strong></div>
                 <div class="status-box"><span>Tecnologia</span><strong id="sEngine">-</strong></div>
-              </div>
-              <div style="height:12px"></div>
-              <div class="status-line">
-                <div class="status-box"><span>Proxy</span><strong id="sProxy">-</strong></div>
               </div>
               <div style="height:12px"></div>
               <div id="lastErrorBox" class="notice">Sem erro recente.</div>
@@ -436,9 +428,6 @@ export function adminHtml() {
         $('api_key').required = isNew;
         $('session').value = item?.session || providerMeta($('provider').value).session || '';
         $('instance').value = item?.instance || providerMeta($('provider').value).instance || '';
-        $('proxy_enabled').checked = Boolean(item?.proxy_enabled && item?.has_proxy);
-        $('proxy_url').value = '';
-        $('proxy_url').placeholder = item?.has_proxy ? 'mantém proxy atual se vazio' : 'http://usuario:senha@proxy:porta';
         $('daily_limit').value = item?.daily_limit || 50;
         $('min_seconds_between_messages').value = item?.min_seconds_between_messages || 60;
         $('send_path').value = item?.send_path || '';
@@ -453,7 +442,6 @@ export function adminHtml() {
       $('sProvider').textContent = item?.provider || '-';
       $('sLastSent').textContent = formatDateTime(item?.last_sent_at);
       $('sEngine').textContent = item?.engine || '-';
-      $('sProxy').textContent = item?.proxy_enabled && item?.has_proxy ? 'Ativo' : 'Direto';
       $('lastErrorBox').className = item?.last_error ? 'notice err' : 'notice';
       $('lastErrorBox').textContent = item?.last_error ? messageError({ error: item.last_error }) : 'Sem erro recente.';
       $('pauseBtn').textContent = item?.status === 'active' ? 'Pausar' : 'Ativar';
@@ -597,8 +585,6 @@ export function adminHtml() {
         api_key: $('api_key').value.trim(),
         session: $('session').value.trim(),
         instance: $('instance').value.trim(),
-        proxy_enabled: $('proxy_enabled').checked,
-        proxy_url: $('proxy_url').value.trim(),
         daily_limit: Number($('daily_limit').value || 50),
         min_seconds_between_messages: Number($('min_seconds_between_messages').value || 60),
         send_path: $('send_path').value.trim(),
@@ -606,7 +592,6 @@ export function adminHtml() {
         notes: $('notes').value.trim()
       };
       if (existing && !data.api_key) delete data.api_key;
-      if (existing && data.proxy_enabled && !data.proxy_url) delete data.proxy_url;
       return data;
     }
 
