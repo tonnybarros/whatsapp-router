@@ -281,6 +281,7 @@ export function adminHtml() {
 
     const state = { instances: [], messages: [], health: null, selectedId: null, view: 'config', page: 'realtime', refreshing: false, formDirty: false };
     const $ = (id) => document.getElementById(id);
+    const basePath = window.location.pathname.startsWith('/v1') ? '/v1' : '';
 
     function key() { return localStorage.getItem('routerKey') || ''; }
     function selected() { return state.instances.find((item) => item.id === state.selectedId) || null; }
@@ -307,14 +308,14 @@ export function adminHtml() {
     async function api(path, options = {}) {
       const headers = { 'X-Router-Key': key(), ...(options.headers || {}) };
       if (options.body) headers['Content-Type'] = 'application/json';
-      const response = await fetch('/api' + path, { ...options, headers });
+      const response = await fetch(basePath + '/api' + path, { ...options, headers });
       const data = await response.json().catch(() => null);
       if (!response.ok) throw new Error(readableError(data) || 'HTTP ' + response.status);
       return data;
     }
 
     async function publicGet(path) {
-      const response = await fetch(path);
+      const response = await fetch(basePath + path);
       return response.json();
     }
 
