@@ -1,0 +1,15 @@
+api.tectonny.com.br {
+    redir /v1 /v1/ 308
+
+    handle_path /v1/* {
+        reverse_proxy 10.46.68.20:3026
+    }
+
+    reverse_proxy 10.46.68.20:3025
+    encode zstd gzip
+    tls {
+        issuer acme {
+            disable_http_challenge
+        }
+    }
+}

@@ -65,6 +65,8 @@ export function adminHtml() {
     .nav-separator { height: 1px; background: rgba(255,255,255,.12); margin: 4px 8px; }
     .sidebar-foot { display: grid; gap: 8px; }
     .sidebar-foot button { width: 100%; color: #e6edf5; border-color: rgba(255,255,255,.16); }
+    .app-version { color: #a9b7c7; font-size: 12px; padding: 4px 8px; }
+    .app-version strong { color: #e6edf5; }
 
     .content { padding: 20px; display: grid; gap: 16px; align-content: start; }
     .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -147,6 +149,7 @@ export function adminHtml() {
         </div>
         <div></div>
         <div class="sidebar-foot">
+          <div class="app-version">Versão <strong id="appVersion">-</strong></div>
           <button id="newConnector" class="ghost" type="button">Novo Conector</button>
           <button id="logout" class="ghost" type="button">Sair</button>
         </div>
@@ -377,6 +380,7 @@ export function adminHtml() {
       const pending = state.health?.queue?.pending ?? 0;
       const running = state.health?.queue?.running ? 1 : 0;
       $('mService').textContent = state.health?.ok ? 'OK · fila ' + (pending + running) : '-';
+      $('appVersion').textContent = state.health?.version || '-';
     }
 
     function renderNav() {

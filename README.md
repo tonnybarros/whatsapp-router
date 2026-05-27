@@ -298,13 +298,14 @@ npm run check
 pm2 restart whatsapp-router --update-env
 ```
 
-O arquivo de exemplo para nginx está em:
+Os arquivos de exemplo para proxy estão em:
 
 ```text
+deploy/Caddyfile.api.tectonny.v2-v1
 deploy/nginx.api.tectonny.v2-v1.conf
 ```
 
-Ele envia `/v1/*` para a porta `3026` e todo o restante para a porta `3025`.
+Eles enviam `/v1/*` para a porta `3026` e todo o restante para a porta `3025`.
 
 ## Instalacao com Docker Compose
 
