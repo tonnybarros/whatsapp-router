@@ -1,4 +1,20 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: whatsapp-router-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: whatsapp_router
+      POSTGRES_USER: whatsapp_router
+      POSTGRES_PASSWORD: whatsapp_router
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U whatsapp_router -d whatsapp_router"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   whatsapp-router:
     build: .
     container_name: whatsapp-router
@@ -7,14 +23,19 @@ services:
       - .env
     environment:
       HOST: 0.0.0.0
-      DATA_FILE: /app/data/router.json
+      STORE_DRIVER: postgres
+      DATABASE_URL: postgres://whatsapp_router:whatsapp_router@postgres:5432/whatsapp_router
     ports:
       - "3025:3025"
-    volumes:
-      - ./data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3025/health >/dev/null 2>&1 || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 15s
+
+volumes:
+  postgres_data:

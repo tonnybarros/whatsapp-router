@@ -6,12 +6,12 @@ import { config } from "./config.js";
 import { adminHtml } from "./admin.js";
 import { apiDocsHtml } from "./api-docs.js";
 import { openApiSpec, swaggerHtml } from "./openapi.js";
-import { JsonStore } from "./store.js";
+import { createStore } from "./store-factory.js";
 import { nextEligibilityDelayMs, normalizeInstance, resetDailyCounterIfNeeded, selectInstance } from "./selector.js";
 import { checkProviderHealth, sendViaProvider } from "./providers/index.js";
 
 const app = Fastify({ logger: true });
-const store = new JsonStore(config.dataFile);
+const store = createStore(config);
 const queuedJobs = [];
 let queueRunning = false;
 let deliveryChain = Promise.resolve();
@@ -203,7 +203,7 @@ function serviceHealth() {
   return {
     ok: true,
     service: "whatsapp-router",
-    version: "v1",
+    version: "v2",
     time: new Date().toISOString(),
     instances: {
       total: instances.length,

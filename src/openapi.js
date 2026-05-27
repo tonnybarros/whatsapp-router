@@ -3,12 +3,12 @@ export function openApiSpec() {
     openapi: "3.0.3",
     info: {
       title: "WhatsApp Router API",
-      version: "1.0.0",
-      description: `API para enviar mensagens WhatsApp por conectores uazapi, WAHA, Evolution Go e Evolution API.
+      version: "2.0.0",
+      description: `API para enviar mensagens WhatsApp por conectores uazapi, WAHA, Evolution Go e Evolution API. Esta é a V2 com suporte a PostgreSQL.
 
 ## Instalação
 
-Para VPS/LXC, o recomendado é **Node.js + PM2**:
+Para VPS/LXC, o recomendado é **Node.js + PM2 + PostgreSQL**:
 
 \`\`\`bash
 git clone https://github.com/tonnybarros/whatsapp-router.git
@@ -20,6 +20,8 @@ pm2 start ecosystem.config.cjs
 pm2 save
 \`\`\`
 
+No \`.env\`, configure \`STORE_DRIVER=postgres\` e \`DATABASE_URL\`.
+
 Para Docker Compose:
 
 \`\`\`bash
@@ -30,6 +32,8 @@ docker compose up -d --build
 \`\`\`
 
 No \`.env\`, configure \`ROUTER_API_KEY\`. Esse é o token usado no header \`X-Router-Key\` ou em \`Authorization: Bearer\`.
+
+Para manter a versão básica, use a tag \`v1.0.0-basic\`. Em produção, a V2 pode ficar no domínio raiz e a V1 em \`/v1\`.
 
 Documentação completa: [abrir /docs](/docs).`
     },

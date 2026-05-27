@@ -9,6 +9,13 @@ Providers iniciais:
 - `evolution_go`
 - `evolution_api`
 
+## Versões
+
+- `main` + tag `v1.0.0-basic`: versão básica estável usando JSON em arquivo.
+- branch `v2-postgres`: versão 2.0 com suporte a PostgreSQL.
+
+Na V2, o Router usa PostgreSQL quando `DATABASE_URL` está configurado. Sem `DATABASE_URL`, ele ainda roda com JSON para desenvolvimento e migração.
+
 ## Qual instalacao escolher?
 
 Para uma VPS/LXC simples, a melhor opcao costuma ser **sem Docker, usando Node.js + PM2**. Fica facil ver logs, editar `.env`, reiniciar o servico e integrar com Caddy/Nginx.
@@ -40,6 +47,7 @@ Este e o caminho mais simples para instalar em VPS/LXC, principalmente quando vo
 - npm
 - git
 - PM2
+- PostgreSQL 14 ou superior para produção na V2
 - Um dominio apontando para o servidor, se for publicar com HTTPS
 
 No Ubuntu/Debian, confirme Node/npm e instale o PM2:
@@ -99,6 +107,9 @@ Configuracao minima:
 PORT=3025
 HOST=0.0.0.0
 ROUTER_API_KEY=troque-por-um-token-forte
+STORE_DRIVER=postgres
+DATABASE_URL=postgres://usuario:senha@127.0.0.1:5432/whatsapp_router
+DATABASE_SSL=false
 DATA_FILE=./data/router.json
 DEFAULT_DAILY_LIMIT=50
 DEFAULT_MIN_SECONDS_BETWEEN_MESSAGES=60
@@ -117,7 +128,10 @@ Campos importantes:
 | `PORT` | Porta HTTP interna do Router. Padrao: `3025`. |
 | `HOST` | Use `0.0.0.0` em servidor. Use `127.0.0.1` se apenas proxy local puder acessar. |
 | `ROUTER_API_KEY` | Chave exigida no header `X-Router-Key`. Gere uma chave forte. |
-| `DATA_FILE` | Arquivo JSON onde ficam conectores, mensagens e eventos. |
+| `STORE_DRIVER` | `postgres`, `json` ou `auto`. Na V2, use `postgres` em produção. |
+| `DATABASE_URL` | Conexão PostgreSQL. Se estiver vazia e `STORE_DRIVER=auto`, usa JSON. |
+| `DATABASE_SSL` | Use `true` quando o PostgreSQL exigir SSL. |
+| `DATA_FILE` | Arquivo JSON usado na V1, no modo `json`, ou como origem da migração. |
 | `DEFAULT_DAILY_LIMIT` | Limite diario padrao por conector. |
 | `DEFAULT_MIN_SECONDS_BETWEEN_MESSAGES` | Intervalo minimo padrao entre mensagens por conector. |
 | `DEFAULT_ERROR_COOLDOWN_SECONDS` | Tempo de cooldown quando um provider falha. |
@@ -144,6 +158,22 @@ curl http://127.0.0.1:3025/health
 ```
 
 Se respondeu JSON com `"ok": true`, esta funcionando.
+
+### 5.1. Migrar JSON para PostgreSQL
+
+Se você já usava a versão básica com `data/router.json`, configure `DATABASE_URL` no `.env` e rode:
+
+```bash
+npm run migrate:postgres
+```
+
+Depois deixe no `.env`:
+
+```env
+STORE_DRIVER=postgres
+```
+
+O comando cria as tabelas automaticamente e copia conectores, mensagens e eventos do JSON para o PostgreSQL.
 
 ### 6. Rodar com PM2
 
@@ -231,6 +261,51 @@ pm2 restart whatsapp-router --update-env
 
 Se voce instalou em outro diretorio, ajuste o `cd`.
 
+## Publicar V2 no domínio atual e manter V1 em `/v1`
+
+A estratégia recomendada para transição é:
+
+- V2/PostgreSQL em `https://api.tectonny.com.br`
+- V1 básica em `https://api.tectonny.com.br/v1`
+
+Exemplo de estrutura no servidor:
+
+```text
+/var/www/sse/whatsapp-router       # V2, branch v2-postgres, porta 3025
+/var/www/sse/whatsapp-router-v1    # V1, tag v1.0.0-basic, porta 3026
+```
+
+Preparar a V1:
+
+```bash
+cd /var/www/sse
+git clone https://github.com/tonnybarros/whatsapp-router.git whatsapp-router-v1
+cd whatsapp-router-v1
+git checkout v1.0.0-basic
+cp ../whatsapp-router/.env .env
+npm ci
+PORT=3026 pm2 start src/server.js --name whatsapp-router-v1 --update-env
+pm2 save
+```
+
+Manter a V2 no domínio raiz:
+
+```bash
+cd /var/www/sse/whatsapp-router
+git checkout v2-postgres
+npm ci
+npm run check
+pm2 restart whatsapp-router --update-env
+```
+
+O arquivo de exemplo para nginx está em:
+
+```text
+deploy/nginx.api.tectonny.v2-v1.conf
+```
+
+Ele envia `/v1/*` para a porta `3026` e todo o restante para a porta `3025`.
+
 ## Instalacao com Docker Compose
 
 Use este caminho se voce prefere container, ou se o servidor ja tem outros servicos em Docker.
@@ -279,7 +354,8 @@ No Docker Compose, o projeto ja sobrescreve:
 
 ```env
 HOST=0.0.0.0
-DATA_FILE=/app/data/router.json
+STORE_DRIVER=postgres
+DATABASE_URL=postgres://whatsapp_router:whatsapp_router@postgres:5432/whatsapp_router
 ```
 
 ### 3. Subir o container
@@ -316,7 +392,7 @@ docker compose up -d --build
 Os dados ficam persistidos em:
 
 ```text
-./data/router.json
+volume postgres_data
 ```
 
 Para publicar com HTTPS usando Docker, mantenha o container na porta `3025` e use Caddy/Nginx no host apontando para `127.0.0.1:3025`, igual ao exemplo da instalacao sem Docker.

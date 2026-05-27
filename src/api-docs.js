@@ -43,11 +43,11 @@ export function apiDocsHtml() {
 
     <section>
       <h2>Instalação Recomendada</h2>
-      <p>Para VPS ou LXC, o caminho mais simples é rodar com Node.js + PM2 e deixar o HTTPS no Caddy/Nginx. Use Docker Compose quando o servidor já trabalha com containers.</p>
+      <p>Para VPS ou LXC, o caminho mais simples é rodar com Node.js + PM2, PostgreSQL e HTTPS no Caddy/Nginx. Use Docker Compose quando o servidor já trabalha com containers.</p>
       <table>
         <thead><tr><th>Cenário</th><th>Melhor caminho</th></tr></thead>
         <tbody>
-          <tr><td>VPS/LXC dedicado</td><td>Node.js + PM2</td></tr>
+          <tr><td>VPS/LXC dedicado</td><td>Node.js + PM2 + PostgreSQL</td></tr>
           <tr><td>Servidor com vários containers</td><td>Docker Compose</td></tr>
           <tr><td>Desenvolvimento local</td><td><code>npm run dev</code></td></tr>
           <tr><td>Produção com HTTPS</td><td>Router na porta <code>3025</code> + proxy reverso em <code>443</code></td></tr>
@@ -71,7 +71,10 @@ pm2 save</pre>
       <pre>PORT=3025
 HOST=0.0.0.0
 ROUTER_API_KEY=troque-por-um-token-forte
-DATA_FILE=./data/router.json</pre>
+STORE_DRIVER=postgres
+DATABASE_URL=postgres://usuario:senha@127.0.0.1:5432/whatsapp_router
+DATABASE_SSL=false</pre>
+      <p>Se você está migrando da V1 em JSON, configure o banco e rode <code>npm run migrate:postgres</code>.</p>
     </section>
 
     <section>
@@ -83,7 +86,7 @@ openssl rand -hex 32
 nano .env
 docker compose up -d --build
 docker compose logs -f whatsapp-router</pre>
-      <p>No Docker, os dados ficam persistidos em <code>./data/router.json</code>. Faça backup desse arquivo e do <code>.env</code>.</p>
+      <p>No Docker, os dados ficam persistidos no volume PostgreSQL <code>postgres_data</code>. Faça backup do banco e do <code>.env</code>.</p>
     </section>
 
     <section>
@@ -96,13 +99,21 @@ docker compose logs -f whatsapp-router</pre>
     </section>
 
     <section>
+      <h2>V2 no Domínio e V1 em /v1</h2>
+      <p>A transição recomendada é manter a V2 em <code>https://api.tectonny.com.br</code> e a versão básica em <code>https://api.tectonny.com.br/v1</code>.</p>
+      <pre>/var/www/sse/whatsapp-router       # V2, porta 3025
+/var/www/sse/whatsapp-router-v1    # V1, porta 3026</pre>
+      <p>O exemplo de nginx está em <code>deploy/nginx.api.tectonny.v2-v1.conf</code>.</p>
+    </section>
+
+    <section>
       <h2>Atualizar e Backup</h2>
       <pre>git pull
 npm ci
 npm run check
 pm2 restart whatsapp-router --update-env</pre>
-      <p>Arquivos que devem ser protegidos e nunca publicados: <code>.env</code> e <code>data/router.json</code>.</p>
-      <pre>tar -czf whatsapp-router-backup-$(date +%F).tar.gz .env data/router.json</pre>
+      <p>Arquivos que devem ser protegidos e nunca publicados: <code>.env</code>, backups de banco e <code>data/router.json</code> quando estiver migrando da V1.</p>
+      <pre>pg_dump "$DATABASE_URL" > whatsapp-router-$(date +%F).sql</pre>
     </section>
 
     <section>

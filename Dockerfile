@@ -11,6 +11,7 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 
 COPY src ./src
+COPY scripts ./scripts
 COPY README.md ./
 
 RUN mkdir -p /app/data && chown -R node:node /app

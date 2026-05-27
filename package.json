@@ -1,17 +1,19 @@
 {
   "name": "whatsapp-router",
-  "version": "0.1.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "check": "node --check src/server.js && node --check src/store.js && node --check src/selector.js && node --check src/providers/index.js"
+    "check": "node --check src/server.js && node --check src/store.js && node --check src/postgres-store.js && node --check src/store-factory.js && node --check src/selector.js && node --check src/providers/index.js && node --check scripts/migrate-json-to-postgres.js",
+    "migrate:postgres": "node scripts/migrate-json-to-postgres.js"
   },
   "dependencies": {
     "@fastify/cors": "^11.1.0",
     "@fastify/rate-limit": "^10.3.0",
     "dotenv": "^17.2.3",
-    "fastify": "^5.8.5"
+    "fastify": "^5.8.5",
+    "pg": "^8.21.0"
   }
 }
