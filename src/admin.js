@@ -181,7 +181,11 @@ export function adminHtml() {
     const state = { overview: null, instances: [], messages: [] };
     const $ = (id) => document.getElementById(id);
     const key = () => localStorage.getItem('routerV3AdminKey') || '';
-    const headers = () => ({ 'Content-Type': 'application/json', 'X-Admin-Key': key() });
+    const headers = (hasBody = false) => {
+      const value = { 'X-Admin-Key': key() };
+      if (hasBody) value['Content-Type'] = 'application/json';
+      return value;
+    };
     const selectedWorkspaceId = () => $('workspaceSelect').value;
 
     function setNotice(text) {
@@ -206,7 +210,8 @@ export function adminHtml() {
       return item.error.message || item.error.error || JSON.stringify(item.error);
     }
     async function api(path, options = {}) {
-      const response = await fetch(path, { ...options, headers: { ...headers(), ...(options.headers || {}) } });
+      const hasBody = Object.prototype.hasOwnProperty.call(options, 'body') && options.body !== undefined;
+      const response = await fetch(path, { ...options, headers: { ...headers(hasBody), ...(options.headers || {}) } });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || data.message || 'HTTP ' + response.status);
       return data;
@@ -286,8 +291,13 @@ export function adminHtml() {
       const user = state.overview.users.find((item) => item.id === id);
       const name = user?.name || user?.phone_masked || id;
       if (!confirm('Excluir usuário ' + name + '? Isso apaga workspaces, API keys, conectores e mensagens dele.')) return;
-      await api('/api/admin/users/' + id, { method: 'DELETE' });
-      await load();
+      try {
+        await api('/api/admin/users/' + id, { method: 'DELETE' });
+        await load();
+        setNotice('Usuário excluído.');
+      } catch (error) {
+        setNotice(error.message);
+      }
     };
     $('login').onclick = async () => {
       localStorage.setItem('routerV3AdminKey', $('adminKey').value.trim());
