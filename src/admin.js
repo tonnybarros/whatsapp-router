@@ -6,12 +6,13 @@ export function adminHtml() {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>WhatsApp Router V3</title>
   <style>
-    :root { font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #0f172a; background: #eef3f8; }
+    :root { font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #0f172a; background: #eef6f4; }
     * { box-sizing: border-box; }
     body { margin: 0; }
     button, input, select, textarea { font: inherit; }
     button { cursor: pointer; border: 1px solid #cbd5e1; background: #fff; border-radius: 8px; padding: 10px 14px; font-weight: 800; }
     button.primary { background: #0f766e; color: #fff; border-color: #0f766e; }
+    button.blue { background: #315fdc; color: #fff; border-color: #315fdc; }
     button.danger { color: #b42318; border-color: #fda29b; }
     input, select, textarea { width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 11px 12px; background: #fff; color: #0f172a; }
     label { display: grid; gap: 6px; font-size: 12px; font-weight: 900; color: #475569; text-transform: uppercase; }
@@ -22,7 +23,7 @@ export function adminHtml() {
     code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
     pre { margin: 0; background: #111827; color: #e5edf7; border-radius: 8px; padding: 12px; overflow: auto; line-height: 1.45; }
     .app { display: grid; grid-template-columns: 310px 1fr; min-height: 100vh; }
-    .side { background: #152131; color: #e2e8f0; padding: 24px 18px; }
+    .side { background: #122536; color: #e2e8f0; padding: 24px 18px; border-right: 4px solid #0f766e; }
     .side h1 { margin: 0; font-size: 22px; }
     .side p { margin: 6px 0 20px; color: #b9c6d8; }
     .side button { width: 100%; margin-top: 8px; }
@@ -32,7 +33,10 @@ export function adminHtml() {
     .top p { margin: 6px 0 0; color: #64748b; }
     .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
     .metric, .panel { background: #fff; border: 1px solid #d8e0ea; border-radius: 8px; }
-    .metric { padding: 16px; }
+    .metric { padding: 16px; box-shadow: inset 0 3px 0 #0f766e; }
+    .metric:nth-child(2) { box-shadow: inset 0 3px 0 #315fdc; }
+    .metric:nth-child(3) { box-shadow: inset 0 3px 0 #b54708; }
+    .metric:nth-child(4) { box-shadow: inset 0 3px 0 #7c3aed; }
     .metric span { color: #64748b; font-size: 12px; text-transform: uppercase; font-weight: 900; }
     .metric strong { display: block; font-size: 30px; margin-top: 8px; }
     .panel { margin-bottom: 16px; overflow: hidden; }
@@ -41,6 +45,7 @@ export function adminHtml() {
     .panel-body { padding: 16px; }
     .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
     .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .full { grid-column: 1 / -1; }
     .actions { display: flex; gap: 8px; flex-wrap: wrap; }
     .modal { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 24px; background: rgba(15, 23, 42, .56); }
     .modal-card { width: min(980px, 100%); max-height: calc(100vh - 48px); overflow: auto; background: #fff; border: 1px solid #d8e0ea; border-radius: 8px; box-shadow: 0 24px 60px rgba(15, 23, 42, .28); }
@@ -103,6 +108,7 @@ export function adminHtml() {
         <div class="panel-body grid">
           <label>Webhook n8n para enviar código <input id="verifyWebhook" placeholder="https://n8n.seudominio/webhook/router-codigo"></label>
           <label>Endpoint público <input id="requestCodeUrl" readonly></label>
+          <p class="muted full">O endpoint público é a URL usada pela página de cadastro para solicitar o código via WhatsApp. Ele inicia o cadastro; o envio do código acontece pelo webhook n8n configurado aqui.</p>
           <div>
             <p class="muted">Payload enviado para o n8n:</p>
             <pre id="verifyPayload">{}</pre>
@@ -125,6 +131,29 @@ export function adminHtml() {
 
       <section class="panel">
         <div class="panel-head"><h3>Usuários</h3></div>
+        <div id="userModal" class="modal hidden">
+          <div class="modal-card">
+            <div class="modal-head">
+              <h3>Editar usuário</h3>
+              <div class="actions">
+                <button id="saveUser" class="primary" type="button">Salvar usuário</button>
+                <button id="closeUserModal" class="modal-close" type="button">×</button>
+              </div>
+            </div>
+            <form id="userForm" class="panel-body grid-3">
+              <input type="hidden" id="editUserId">
+              <label>Nome <input id="editUserName"></label>
+              <label>WhatsApp <input id="editUserPhone"></label>
+              <label>Status
+                <select id="editUserStatus">
+                  <option value="active">Ativo</option>
+                  <option value="blocked">Bloqueado</option>
+                </select>
+              </label>
+              <label class="full">Workspace <input id="editWorkspaceName"></label>
+            </form>
+          </div>
+        </div>
         <table>
           <thead><tr><th>Nome</th><th>WhatsApp</th><th>Status</th><th>Workspaces</th><th>Ações</th></tr></thead>
           <tbody id="usersRows"></tbody>
@@ -261,7 +290,7 @@ export function adminHtml() {
     function renderUsers() {
       $('usersRows').innerHTML = state.overview.users.map((user) => {
         const workspaces = user.workspaces.map((w) => html(w.name) + ' <span class="muted">(' + html(w.api_keys[0]?.key_preview || 'sem key') + ')</span>').join('<br>');
-        return '<tr><td>' + html(user.name || '-') + '</td><td class="mono">' + html(user.phone_masked) + '</td><td>' + badge(user.status) + '</td><td>' + workspaces + '</td><td><button class="danger" onclick="deleteUser(\\'' + html(user.id) + '\\')">Excluir</button></td></tr>';
+        return '<tr><td>' + html(user.name || '-') + '</td><td class="mono">' + html(user.phone_masked) + '</td><td>' + badge(user.status) + '</td><td>' + workspaces + '</td><td class="actions"><button onclick="editUser(\\'' + html(user.id) + '\\')">Editar</button><button class="danger" onclick="deleteUser(\\'' + html(user.id) + '\\')">Excluir</button></td></tr>';
       }).join('') || '<tr><td colspan="5">Nenhum usuário.</td></tr>';
     }
     async function loadWorkspace() {
@@ -290,6 +319,9 @@ export function adminHtml() {
     }
     function closeInstanceModal() {
       $('instanceModal').classList.add('hidden');
+    }
+    function closeUserModal() {
+      $('userModal').classList.add('hidden');
     }
     function clearInstanceForm() {
       $('instanceForm').reset();
@@ -336,6 +368,16 @@ export function adminHtml() {
         setNotice(error.message);
       }
     };
+    window.editUser = (id) => {
+      const user = state.overview.users.find((item) => item.id === id);
+      if (!user) return;
+      $('editUserId').value = user.id;
+      $('editUserName').value = user.name || '';
+      $('editUserPhone').value = user.phone || '';
+      $('editUserStatus').value = user.status || 'active';
+      $('editWorkspaceName').value = user.workspaces?.[0]?.name || '';
+      $('userModal').classList.remove('hidden');
+    };
     $('login').onclick = async () => {
       localStorage.setItem('routerV3AdminKey', $('adminKey').value.trim());
       await load().catch((error) => {
@@ -365,6 +407,22 @@ export function adminHtml() {
       openInstanceModal('Novo conector');
     };
     $('closeInstanceModal').onclick = closeInstanceModal;
+    $('closeUserModal').onclick = closeUserModal;
+    $('saveUser').onclick = async () => {
+      const id = $('editUserId').value;
+      await api('/api/admin/users/' + id, {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: $('editUserName').value.trim(),
+          phone: $('editUserPhone').value.trim(),
+          status: $('editUserStatus').value,
+          workspace_name: $('editWorkspaceName').value.trim()
+        })
+      });
+      closeUserModal();
+      await load();
+      setNotice('Usuário atualizado.');
+    };
     $('provider').onchange = () => {
       const meta = providers[$('provider').value] || providers.uazapi;
       $('base_url').placeholder = meta.base_url;

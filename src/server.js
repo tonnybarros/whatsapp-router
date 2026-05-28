@@ -893,6 +893,39 @@ app.register(async (admin) => {
     });
   });
 
+  admin.put("/users/:id", async (request, reply) => {
+    const user = store.findUser(request.params.id);
+    if (!user) return reply.code(404).send({ error: "user_not_found" });
+
+    const body = request.body || {};
+    const phone = body.phone ? onlyDigits(body.phone) : user.phone;
+    const existingPhoneUser = store.findUserByPhone(phone);
+    if (existingPhoneUser && existingPhoneUser.id !== user.id) {
+      return reply.code(409).send({ error: "phone_already_exists" });
+    }
+
+    user.name = body.name?.trim() || user.name;
+    user.phone = phone;
+    user.status = body.status || user.status;
+    user.updated_at = new Date().toISOString();
+    await store.upsertUser(user);
+
+    const workspace = store.listWorkspaces(user.id)[0];
+    if (workspace && body.workspace_name?.trim()) {
+      workspace.name = body.workspace_name.trim();
+      workspace.updated_at = new Date().toISOString();
+      await store.upsertWorkspace(workspace);
+    }
+
+    return {
+      ok: true,
+      user: {
+        ...publicUser(user),
+        workspaces: store.listWorkspaces(user.id).map(workspaceSummary)
+      }
+    };
+  });
+
   admin.delete("/users/:id", async (request, reply) => {
     const deleted = await store.deleteUser(request.params.id);
     if (!deleted) return reply.code(404).send({ error: "user_not_found" });

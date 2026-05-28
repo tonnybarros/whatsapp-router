@@ -6,7 +6,7 @@ export function portalHtml() {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Painel WhatsApp Router</title>
   <style>
-    :root { font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #071225; background: #eef3f8; }
+    :root { font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #071225; background: #eef6f4; }
     * { box-sizing: border-box; }
     body { margin: 0; }
     button, input, select, textarea { font: inherit; }
@@ -23,7 +23,7 @@ export function portalHtml() {
     tr:last-child td { border-bottom: 0; }
     code, pre, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
     .app { display: grid; grid-template-columns: 330px 1fr; min-height: 100vh; }
-    .side { background: #152131; color: #e2e8f0; padding: 24px 18px; }
+    .side { background: #122536; color: #e2e8f0; padding: 24px 18px; border-right: 4px solid #155eef; }
     .side h1 { margin: 0; font-size: 22px; }
     .side p { margin: 6px 0 20px; color: #b9c6d8; }
     .side button { width: 100%; margin-top: 8px; }
@@ -37,7 +37,10 @@ export function portalHtml() {
     .top p { margin: 6px 0 0; color: #64748b; }
     .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
     .metric, .panel { background: #fff; border: 1px solid #d8e0ea; border-radius: 8px; overflow: hidden; }
-    .metric { padding: 16px; }
+    .metric { padding: 16px; box-shadow: inset 0 3px 0 #155eef; }
+    .metric:nth-child(2) { box-shadow: inset 0 3px 0 #0f766e; }
+    .metric:nth-child(3) { box-shadow: inset 0 3px 0 #b54708; }
+    .metric:nth-child(4) { box-shadow: inset 0 3px 0 #7c3aed; }
     .metric span { color: #64748b; font-size: 12px; text-transform: uppercase; font-weight: 900; }
     .metric strong { display: block; font-size: 30px; margin-top: 8px; }
     .panel { margin-bottom: 16px; }
@@ -46,6 +49,7 @@ export function portalHtml() {
     .panel-body { padding: 16px; }
     .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
     .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .full { grid-column: 1 / -1; }
     .actions { display: flex; gap: 8px; flex-wrap: wrap; }
     .modal { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 24px; background: rgba(15, 23, 42, .56); }
     .modal-card { width: min(980px, 100%); max-height: calc(100vh - 48px); overflow: auto; background: #fff; border: 1px solid #d8e0ea; border-radius: 8px; box-shadow: 0 24px 60px rgba(15, 23, 42, .28); }
