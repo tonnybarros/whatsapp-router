@@ -32,6 +32,12 @@ O admin usa `ADMIN_KEY` e fica em:
 https://multiapi.tectonny.com.br/admin
 ```
 
+O cadastro público por código WhatsApp fica em:
+
+```txt
+https://multiapi.tectonny.com.br/cadastro
+```
+
 O cadastro por WhatsApp funciona assim:
 
 1. O usuario chama `POST /api/auth/request-code` com `phone` e `name`.

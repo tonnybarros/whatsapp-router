@@ -44,10 +44,11 @@ export function apiDocsHtml() {
 
     <section>
       <h2>Cadastro via Código WhatsApp</h2>
-      <p>Configure no admin a URL webhook do n8n que enviará o código para o usuário.</p>
+      <p>Configure no admin a URL webhook do n8n que enviará o código para o usuário. A página pública de cadastro fica em <code>/cadastro</code>.</p>
       <table>
         <thead><tr><th>Método</th><th>Rota</th><th>Uso</th></tr></thead>
         <tbody>
+          <tr><td><code>GET</code></td><td><code>/cadastro</code></td><td>Página pública para o usuário pedir e validar o código.</td></tr>
           <tr><td><code>POST</code></td><td><code>/api/auth/request-code</code></td><td>Gera código e envia para o webhook n8n configurado.</td></tr>
           <tr><td><code>POST</code></td><td><code>/api/auth/verify-code</code></td><td>Valida código, cria usuário, workspace e API key.</td></tr>
         </tbody>

@@ -4,6 +4,7 @@ import rateLimit from "@fastify/rate-limit";
 import crypto from "node:crypto";
 import { config } from "./config.js";
 import { adminHtml } from "./admin.js";
+import { registerHtml } from "./register.js";
 import { apiDocsHtml } from "./api-docs.js";
 import { openApiSpec, swaggerHtml } from "./openapi.js";
 import { createStore } from "./store-factory.js";
@@ -751,6 +752,14 @@ app.get("/", async (_request, reply) => {
 
 app.get("/admin", async (_request, reply) => {
   reply.type("text/html").send(adminHtml());
+});
+
+app.get("/cadastro", async (_request, reply) => {
+  reply.type("text/html").send(registerHtml());
+});
+
+app.get("/register", async (_request, reply) => {
+  reply.type("text/html").send(registerHtml());
 });
 
 app.get("/docs", async (_request, reply) => {

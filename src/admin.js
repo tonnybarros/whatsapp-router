@@ -48,25 +48,34 @@ export function adminHtml() {
     .muted { color: #64748b; }
     .notice { margin: 12px 0; padding: 12px 14px; border: 1px solid #99f6e4; background: #f0fdfa; color: #0f766e; border-radius: 8px; }
     .hidden { display: none !important; }
+    .locked .protected { display: none !important; }
+    .login-card { margin-top: 18px; padding: 14px; border: 1px solid rgba(203, 213, 225, .28); border-radius: 8px; background: rgba(15, 23, 42, .26); }
+    .locked .side { min-height: 100vh; }
+    .locked .app { grid-template-columns: minmax(300px, 420px); justify-content: center; background: #152131; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
     @media (max-width: 980px) { .app { grid-template-columns: 1fr; } .metrics, .grid, .grid-3 { grid-template-columns: 1fr; } }
   </style>
 </head>
-<body>
+<body class="locked">
   <div class="app">
     <aside class="side">
       <h1>WhatsApp Router</h1>
       <p>V3 multiusuário</p>
-      <label>Chave admin <input id="adminKey" type="password" placeholder="ADMIN_KEY"></label>
-      <button id="login" class="primary" type="button">Entrar</button>
-      <button id="logout" type="button">Sair</button>
-      <div style="height:18px"></div>
-      <label>Workspace <select id="workspaceSelect"></select></label>
-      <button id="refresh" type="button">Atualizar</button>
-      <div class="notice">Envio n8n: <span class="mono">POST /api/send</span> com a chave do workspace.</div>
+      <div class="login-card">
+        <label>Chave admin <input id="adminKey" type="password" placeholder="ADMIN_KEY"></label>
+        <button id="login" class="primary" type="button">Entrar</button>
+        <button id="logout" class="protected" type="button">Sair</button>
+        <div id="loginNotice" class="notice">Informe a chave admin para abrir o painel.</div>
+      </div>
+      <div class="protected">
+        <div style="height:18px"></div>
+        <label>Workspace <select id="workspaceSelect"></select></label>
+        <button id="refresh" type="button">Atualizar</button>
+        <div class="notice">Envio n8n: <span class="mono">POST /api/send</span> com a chave do workspace.</div>
+      </div>
     </aside>
 
-    <main class="main">
+    <main class="main protected">
       <div class="top">
         <div>
           <h2>Admin V3</h2>
@@ -175,7 +184,10 @@ export function adminHtml() {
     const headers = () => ({ 'Content-Type': 'application/json', 'X-Admin-Key': key() });
     const selectedWorkspaceId = () => $('workspaceSelect').value;
 
-    function setNotice(text) { $('notice').textContent = text; }
+    function setNotice(text) {
+      $('notice').textContent = text;
+      $('loginNotice').textContent = text;
+    }
     function badge(value) { return '<span class="badge ' + (value || '') + '">' + statusLabel(value) + '</span>'; }
     function statusLabel(value) {
       return { active: 'Ativo', blocked: 'Bloqueado', ok: 'OK', error: 'Erro', unknown: 'Desconhecido', sent: 'Enviado', failed: 'Erro', dry_run: 'Teste', queued: 'Na fila', processing: 'Processando', selected: 'Selecionado' }[value] || value || '-';
@@ -199,6 +211,7 @@ export function adminHtml() {
     async function load() {
       $('adminKey').value = key();
       state.overview = await api('/api/admin/overview');
+      document.body.classList.remove('locked');
       $('mUsers').textContent = state.overview.users.length;
       $('mWorkspaces').textContent = state.overview.workspaces.length;
       $('mInstances').textContent = state.overview.workspaces.reduce((sum, item) => sum + item.instances_total, 0);
@@ -265,7 +278,10 @@ export function adminHtml() {
     };
     $('login').onclick = async () => {
       localStorage.setItem('routerV3AdminKey', $('adminKey').value.trim());
-      await load().catch((error) => setNotice(error.message));
+      await load().catch((error) => {
+        document.body.classList.add('locked');
+        setNotice(error.message);
+      });
     };
     $('logout').onclick = () => { localStorage.removeItem('routerV3AdminKey'); location.reload(); };
     $('refresh').onclick = () => load().catch((error) => setNotice(error.message));
@@ -305,7 +321,10 @@ export function adminHtml() {
       $('instanceId').value = '';
       await loadWorkspace();
     };
-    if (key()) load().catch((error) => setNotice(error.message));
+    if (key()) load().catch((error) => {
+      document.body.classList.add('locked');
+      setNotice(error.message);
+    });
   </script>
 </body>
 </html>`;

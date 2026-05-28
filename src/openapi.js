@@ -98,6 +98,15 @@ export function openApiSpec() {
           }
         }
       },
+      "/cadastro": {
+        get: {
+          summary: "Página pública de cadastro por código WhatsApp",
+          security: [],
+          responses: {
+            200: { description: "HTML de cadastro público." }
+          }
+        }
+      },
       "/api/send": {
         post: {
           summary: "Enviar mensagem pelo workspace autenticado",
