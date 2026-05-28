@@ -2,12 +2,13 @@
 
 MVP de roteamento para múltiplas instâncias/provedores de WhatsApp.
 
-Providers iniciais:
+Providers suportados:
 
 - `uazapi`
 - `waha`
 - `evolution_go`
 - `evolution_api`
+- `custom`
 
 ## Versões
 
@@ -469,6 +470,64 @@ DELETE /api/instances/:id
 }
 ```
 
+## Custom API
+
+Use `provider: "custom"` quando a API de WhatsApp nao for uma das integracoes nativas. O Router continua fazendo a selecao do conector, limites por dia, intervalo minimo, fila, cooldown, failover e historico; a diferenca e que voce informa como montar a chamada HTTP para a sua API.
+
+Campos principais:
+
+| Campo | Funcao |
+| --- | --- |
+| `provider` | Deve ser `custom`. |
+| `base_url` | URL base da API externa, sem o path final. |
+| `send_path` | Path chamado no envio. Exemplo: `/send`, `/message/text` ou `/api/whatsapp/send`. |
+| `health_path` | Path usado no teste de saude. Se vazio, o Router usa um padrao simples. |
+| `api_key` | Token/chave da API externa. Se precisar de Bearer, salve como `Bearer seu-token`. |
+| `auth_header` | Nome do header que recebera o `api_key`. Exemplo: `Authorization`, `X-API-Key` ou `apikey`. |
+| `custom_headers` | JSON com headers extras. Exemplo: `{"X-Origem":"router"}`. |
+| `custom_body_template` | JSON usado como corpo do envio, com placeholders. |
+
+Placeholders disponiveis no `custom_body_template`:
+
+| Placeholder | Valor |
+| --- | --- |
+| `{{to}}` ou `{{number}}` | Numero de destino normalizado. |
+| `{{message}}` ou `{{text}}` | Texto da mensagem. |
+| `{{source}}` | Origem informada no envio, como `n8n`, `whazap` ou `admin`. |
+| `{{track_id}}` | ID interno da mensagem no Router. |
+| `{{external_id}}` | ID externo enviado pela sua aplicacao. |
+| `{{session}}` | Valor do campo `session` do conector. |
+| `{{instance}}` | Valor do campo `instance` do conector. |
+
+Exemplo de conector customizado:
+
+```json
+{
+  "name": "api-custom-vendas",
+  "provider": "custom",
+  "base_url": "https://api.seudominio.com",
+  "send_path": "/send",
+  "health_path": "/health",
+  "auth_header": "Authorization",
+  "api_key": "Bearer token-da-api",
+  "custom_headers": "{\"X-Origem\":\"router\"}",
+  "custom_body_template": "{\"number\":\"{{number}}\",\"text\":\"{{message}}\",\"source\":\"{{source}}\",\"track\":\"{{track_id}}\"}",
+  "daily_limit": 30,
+  "min_seconds_between_messages": 90
+}
+```
+
+Com esse template, um envio para `5511999999999` com mensagem `Ola` gera um POST para `https://api.seudominio.com/send` com corpo parecido com:
+
+```json
+{
+  "number": "5511999999999",
+  "text": "Ola",
+  "source": "n8n",
+  "track": "msg_..."
+}
+```
+
 ## Exemplo de envio
 
 ```bash
@@ -580,7 +639,7 @@ Exemplo de resposta quando usa fila:
 | `status` | Estado atual da mensagem. Veja a tabela de status abaixo. |
 | `requested_connector_id` | Conector solicitado no payload, quando informado. |
 | `selected_instance_id` | Conector realmente escolhido para a tentativa atual/final. |
-| `provider` | API usada na tentativa final: `uazapi`, `waha`, `evolution_go` ou `evolution_api`. |
+| `provider` | API usada na tentativa final: `uazapi`, `waha`, `evolution_go`, `evolution_api` ou `custom`. |
 | `dry_run` | Indica que foi apenas teste sem envio real. |
 | `queued` | Indica que a mensagem entrou pela fila. |
 | `fallback_allowed` | Mostra se a chamada permitia trocar de conector quando o preferido falhasse ou estivesse inelegivel. |
