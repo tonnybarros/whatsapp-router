@@ -26,6 +26,8 @@ export function normalizeInstance(input) {
     base_url: input.base_url,
     api_key: input.api_key,
     auth_header: input.auth_header,
+    custom_headers: input.custom_headers || "",
+    custom_body_template: input.custom_body_template || "",
     session: input.session,
     instance: input.instance,
     send_path: input.send_path,
@@ -64,7 +66,7 @@ export function explainEligibility(instance) {
 
   if (instance.status !== "active") return `status=${instance.status}`;
   if (!instance.base_url) return "base_url ausente";
-  if (!instance.api_key) return "api_key ausente";
+  if (instance.provider !== "custom" && !instance.api_key) return "api_key ausente";
   if (instance.cooldown_until && new Date(instance.cooldown_until).getTime() > Date.now()) {
     return `cooldown ate ${instance.cooldown_until}`;
   }
@@ -83,7 +85,7 @@ export function explainDryRunEligibility(instance) {
 
   if (instance.status !== "active") return `status=${instance.status}`;
   if (!instance.base_url) return "base_url ausente";
-  if (!instance.api_key) return "api_key ausente";
+  if (instance.provider !== "custom" && !instance.api_key) return "api_key ausente";
   if (instance.daily_sent_count >= instance.daily_limit) {
     return `limite diario ${instance.daily_sent_count}/${instance.daily_limit}`;
   }

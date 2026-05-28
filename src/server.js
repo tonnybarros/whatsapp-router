@@ -364,6 +364,7 @@ async function deliverMessage(message, body, text, options = {}) {
         message: text,
         source: body.source || "api",
         track_id: message.id,
+        external_id: message.external_id,
         delay: body.delay,
         linkPreview: body.linkPreview
       });
@@ -581,7 +582,7 @@ app.register(async (api) => {
     const existing = body.id ? store.findInstance(body.id) : null;
     const required = ["name", "provider", "base_url"];
     const missing = required.filter((field) => !body[field]);
-    if (!existing && !body.api_key) missing.push("api_key");
+    if (!existing && body.provider !== "custom" && !body.api_key) missing.push("api_key");
     if (missing.length) {
       return reply.code(422).send({ error: "missing_fields", fields: missing });
     }

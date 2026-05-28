@@ -188,7 +188,7 @@ pm2 restart whatsapp-router --update-env</pre>
           <tr><td><code>status</code></td><td>Estado atual: <code>queued</code>, <code>processing</code>, <code>selected</code>, <code>sent</code>, <code>dry_run</code> ou <code>failed</code>.</td></tr>
           <tr><td><code>requested_connector_id</code></td><td>Conector solicitado no payload, quando informado.</td></tr>
           <tr><td><code>selected_instance_id</code></td><td>Conector realmente escolhido para a tentativa atual/final.</td></tr>
-          <tr><td><code>provider</code></td><td>API usada: <code>uazapi</code>, <code>waha</code>, <code>evolution_go</code> ou <code>evolution_api</code>.</td></tr>
+          <tr><td><code>provider</code></td><td>API usada: <code>uazapi</code>, <code>waha</code>, <code>evolution_go</code>, <code>evolution_api</code> ou <code>custom</code>.</td></tr>
           <tr><td><code>dry_run</code></td><td>Indica teste sem envio real.</td></tr>
           <tr><td><code>queued</code></td><td>Indica que a mensagem entrou pela fila.</td></tr>
           <tr><td><code>fallback_allowed</code></td><td>Mostra se a chamada permitia trocar de conector.</td></tr>
@@ -201,6 +201,24 @@ pm2 restart whatsapp-router --update-env</pre>
           <tr><td><code>updated_at</code></td><td>Data/hora UTC da última atualização, quando houver.</td></tr>
         </tbody>
       </table>
+    </section>
+
+    <section>
+      <h2>Provider Custom API</h2>
+      <p>Use <code>custom</code> quando quiser plugar uma API externa que não seja uazapi, WAHA ou Evolution. O Router continua usando fila, limite diário, intervalo, failover e logs; só muda a forma de montar a chamada ao provider.</p>
+      <pre>{
+  "name": "Minha API",
+  "provider": "custom",
+  "base_url": "https://api.seudominio.com",
+  "send_path": "/send",
+  "health_path": "/health",
+  "auth_header": "Authorization",
+  "api_key": "Bearer token-da-api",
+  "custom_headers": "{\\"X-Origem\\":\\"router\\"}",
+  "custom_body_template": "{\\"to\\":\\"{{to}}\\",\\"message\\":\\"{{message}}\\",\\"source\\":\\"{{source}}\\"}"
+}</pre>
+      <p>Placeholders disponíveis no template: <code>{{to}}</code>, <code>{{number}}</code>, <code>{{message}}</code>, <code>{{text}}</code>, <code>{{source}}</code>, <code>{{track_id}}</code>, <code>{{external_id}}</code>, <code>{{session}}</code> e <code>{{instance}}</code>.</p>
+      <p>Prefira colocar segredo no campo <code>Token/API Key</code> e informar o nome em <code>auth_header</code>. Use <code>custom_headers</code> para headers extras sem segredo.</p>
     </section>
 
     <section>

@@ -68,9 +68,47 @@ async function requestJson(url, { method = "POST", headers, body, timeoutMs = co
 }
 
 function authHeader(instance, fallbackName) {
+  if (!instance.api_key) return {};
   return {
     [instance.auth_header || fallbackName]: instance.api_key
   };
+}
+
+function parseJsonConfig(value, fallback) {
+  if (!value) return fallback;
+  if (typeof value === "object") return value;
+
+  try {
+    return JSON.parse(String(value));
+  } catch (error) {
+    const friendly = new Error("JSON customizado invalido no conector");
+    friendly.status = 422;
+    friendly.data = { message: error.message };
+    throw friendly;
+  }
+}
+
+function templateContext(instance, payload) {
+  return {
+    to: payload.to,
+    number: onlyDigits(payload.to),
+    message: payload.message,
+    text: payload.message,
+    source: payload.source || "",
+    track_id: payload.track_id || "",
+    external_id: payload.external_id || payload.track_id || "",
+    session: instance.session || "",
+    instance: instance.instance || ""
+  };
+}
+
+function applyTemplate(value, context) {
+  if (Array.isArray(value)) return value.map((item) => applyTemplate(item, context));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, applyTemplate(item, context)]));
+  }
+  if (typeof value !== "string") return value;
+  return value.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_match, key) => context[key] ?? "");
 }
 
 async function resolveWahaChatId(instance, to) {
@@ -235,11 +273,32 @@ async function sendEvolutionApi(instance, payload) {
   });
 }
 
+async function sendCustom(instance, payload) {
+  const url = joinUrl(instance.base_url, instance.send_path || "/");
+  const context = templateContext(instance, payload);
+  const customHeaders = applyTemplate(parseJsonConfig(instance.custom_headers, {}), context);
+  const template = parseJsonConfig(instance.custom_body_template, {
+    to: "{{to}}",
+    message: "{{message}}",
+    source: "{{source}}",
+    track_id: "{{track_id}}"
+  });
+
+  return requestJson(url, {
+    headers: {
+      ...authHeader(instance, "Authorization"),
+      ...customHeaders
+    },
+    body: applyTemplate(template, context)
+  });
+}
+
 const adapters = {
   uazapi: sendUazapi,
   waha: sendWaha,
   evolution_go: sendEvolutionGo,
-  evolution_api: sendEvolutionApi
+  evolution_api: sendEvolutionApi,
+  custom: sendCustom
 };
 
 export async function sendViaProvider(instance, payload) {
@@ -256,12 +315,19 @@ export async function checkProviderHealth(instance) {
     uazapi: "/instance/status",
     waha: `/api/sessions/${encodeURIComponent(instance.session || "default")}`,
     evolution_go: "/instance/status",
-    evolution_api: `/instance/connectionState/${encodeURIComponent(instance.instance || instance.session || "")}`
+    evolution_api: `/instance/connectionState/${encodeURIComponent(instance.instance || instance.session || "")}`,
+    custom: "/"
   };
 
   const url = joinUrl(instance.base_url, instance.health_path || healthPathByProvider[instance.provider] || "/");
+  const customHeaders = instance.provider === "custom"
+    ? applyTemplate(parseJsonConfig(instance.custom_headers, {}), templateContext(instance, { to: "", message: "", source: "", track_id: "" }))
+    : {};
   const response = await fetch(url, {
-    headers: authHeader(instance, instance.provider === "waha" ? "X-Api-Key" : instance.provider === "uazapi" ? "token" : "apikey")
+    headers: {
+      ...authHeader(instance, instance.provider === "waha" ? "X-Api-Key" : instance.provider === "uazapi" ? "token" : instance.provider === "custom" ? "Authorization" : "apikey"),
+      ...customHeaders
+    }
   });
   const text = await response.text();
 

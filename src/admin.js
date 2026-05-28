@@ -216,10 +216,13 @@ export function adminHtml() {
                 <label class="full">Token/API Key <input id="api_key" type="password" placeholder="mantém token atual se vazio"></label>
                 <label>Sessão <input id="session" placeholder="default"></label>
                 <label>Instância <input id="instance" placeholder="minha-instancia"></label>
+                <label class="full">Auth header <input id="auth_header" placeholder="padrão da API"></label>
                 <label>Limite/dia <input id="daily_limit" type="number" min="1" value="50"></label>
                 <label>Intervalo mínimo <input id="min_seconds_between_messages" type="number" min="0" value="60"></label>
                 <label class="full">Send path <input id="send_path" placeholder="padrão da API"></label>
                 <label class="full">Health path <input id="health_path" placeholder="padrão da API"></label>
+                <label class="full">Headers JSON <textarea id="custom_headers" placeholder='{"X-Origem":"router"}'></textarea></label>
+                <label class="full">Body template JSON <textarea id="custom_body_template" placeholder='{"to":"{{to}}","message":"{{message}}"}'></textarea></label>
                 <label class="full">Notas <textarea id="notes"></textarea></label>
                 <div class="full row-actions">
                   <button class="primary" type="submit">Salvar</button>
@@ -278,7 +281,8 @@ export function adminHtml() {
       { id: 'uazapi', name: 'uazapiGO', base_url: 'https://seu-subdominio.uazapi.com', send_path: '/send/text', health_path: '/instance/status', session: '', instance: '' },
       { id: 'waha', name: 'WAHA', base_url: 'https://waha.seudominio.com', send_path: '/api/sendText', health_path: '/api/sessions/default', session: 'default', instance: '' },
       { id: 'evolution_go', name: 'Evolution Go', base_url: 'https://evolution-go.seudominio.com', send_path: '/send/text', health_path: '/instance/status', session: '', instance: '' },
-      { id: 'evolution_api', name: 'Evolution API', base_url: 'https://evolution.seudominio.com', send_path: '', health_path: '', session: '', instance: 'minha-instancia' }
+      { id: 'evolution_api', name: 'Evolution API', base_url: 'https://evolution.seudominio.com', send_path: '', health_path: '', session: '', instance: 'minha-instancia' },
+      { id: 'custom', name: 'Custom API', base_url: 'https://api.seudominio.com', send_path: '/send', health_path: '/', session: '', instance: '' }
     ];
 
     const state = { instances: [], messages: [], health: null, selectedId: null, view: 'config', page: 'realtime', refreshing: false, formDirty: false };
@@ -413,6 +417,7 @@ export function adminHtml() {
         $('base_url').placeholder = meta.base_url;
         $('send_path').placeholder = meta.send_path || 'padrão da API';
         $('health_path').placeholder = meta.health_path || 'padrão da API';
+        $('auth_header').placeholder = $('provider').value === 'custom' ? 'Authorization' : 'padrão da API';
         if (!$('session').value) $('session').value = meta.session;
         if (!$('instance').value) $('instance').value = meta.instance;
       };
@@ -432,12 +437,15 @@ export function adminHtml() {
         $('base_url').value = item?.base_url || '';
         $('api_key').value = '';
         $('api_key').required = isNew;
+        $('auth_header').value = item?.auth_header || '';
         $('session').value = item?.session || providerMeta($('provider').value).session || '';
         $('instance').value = item?.instance || providerMeta($('provider').value).instance || '';
         $('daily_limit').value = item?.daily_limit || 50;
         $('min_seconds_between_messages').value = item?.min_seconds_between_messages || 60;
         $('send_path').value = item?.send_path || '';
         $('health_path').value = item?.health_path || '';
+        $('custom_headers').value = item?.custom_headers || '';
+        $('custom_body_template').value = item?.custom_body_template || '';
         $('notes').value = item?.notes || '';
         $('provider').onchange();
       }
@@ -589,12 +597,15 @@ export function adminHtml() {
         provider: $('provider').value,
         base_url: $('base_url').value.trim(),
         api_key: $('api_key').value.trim(),
+        auth_header: $('auth_header').value.trim(),
         session: $('session').value.trim(),
         instance: $('instance').value.trim(),
         daily_limit: Number($('daily_limit').value || 50),
         min_seconds_between_messages: Number($('min_seconds_between_messages').value || 60),
         send_path: $('send_path').value.trim(),
         health_path: $('health_path').value.trim(),
+        custom_headers: $('custom_headers').value.trim(),
+        custom_body_template: $('custom_body_template').value.trim(),
         notes: $('notes').value.trim()
       };
       if (existing && !data.api_key) delete data.api_key;
