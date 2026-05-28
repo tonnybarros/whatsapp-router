@@ -83,6 +83,12 @@ export function adminHtml() {
     .panel-head h3 { margin: 0; font-size: 16px; }
     .panel-body { padding: 16px; }
     .connector-layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(360px, .9fr); gap: 16px; align-items: start; }
+    .modal { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 24px; background: rgba(15, 23, 42, .56); }
+    .modal .panel:first-child { width: min(920px, 100%); max-height: calc(100vh - 48px); overflow: auto; box-shadow: 0 24px 60px rgba(15, 23, 42, .28); }
+    .modal .panel + .panel { display: none; }
+    .modal-close { font-size: 20px; line-height: 1; min-width: 36px; padding: 0; }
+    .advanced-fields { border-top: 1px solid var(--line); padding-top: 12px; }
+    .summary-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     .tabs { display: flex; gap: 6px; flex-wrap: wrap; }
     .tab { background: transparent; }
     .tab.active { background: #fff; border-color: var(--line-strong); font-weight: 800; }
@@ -176,6 +182,17 @@ export function adminHtml() {
 
         <div id="notice" class="notice">Pronto.</div>
 
+        <section class="panel">
+          <div class="panel-head">
+            <h3>Conectores</h3>
+            <button id="newConnectorTop" class="primary" type="button">Novo Conector</button>
+          </div>
+          <table>
+            <thead><tr><th>Nome</th><th>API</th><th>Status</th><th>Saúde</th><th>Uso Hoje</th><th>Último Envio</th><th>Ações</th></tr></thead>
+            <tbody id="connectorRows"></tbody>
+          </table>
+        </section>
+
         <section id="realtimeView" class="panel hidden">
           <div class="panel-head">
             <h3>Últimas mensagens</h3>
@@ -196,7 +213,7 @@ export function adminHtml() {
           </table>
         </section>
 
-        <section id="connectorSection" class="connector-layout">
+        <section id="connectorSection" class="connector-layout hidden">
           <div class="panel">
             <div class="panel-head">
               <h3 id="connectorHeading">Configuração</h3>
@@ -204,6 +221,7 @@ export function adminHtml() {
                 <button class="tab active" data-view="config" type="button">Configuração</button>
                 <button class="tab" data-view="test" type="button">Teste</button>
                 <button class="tab" data-view="messages" type="button">Mensagens</button>
+                <button id="closeConnector" class="modal-close" type="button">×</button>
               </div>
             </div>
 
@@ -221,6 +239,7 @@ export function adminHtml() {
                 <label>Intervalo mínimo <input id="min_seconds_between_messages" type="number" min="0" value="60"></label>
                 <label class="full">Send path <input id="send_path" placeholder="padrão da API"></label>
                 <label class="full">Health path <input id="health_path" placeholder="padrão da API"></label>
+                <div class="full advanced-fields"></div>
                 <label class="full">Headers JSON <textarea id="custom_headers" placeholder='{"X-Origem":"router"}'></textarea></label>
                 <label class="full">Body template JSON <textarea id="custom_body_template" placeholder='{"to":"{{to}}","message":"{{message}}"}'></textarea></label>
                 <label class="full">Notas <textarea id="notes"></textarea></label>
@@ -371,6 +390,7 @@ export function adminHtml() {
     function render() {
       renderMetrics();
       renderNav();
+      renderConnectorRows();
       renderProviderSelect();
       renderSelected();
       renderMessages();
@@ -402,8 +422,20 @@ export function adminHtml() {
         button.onclick = () => { state.page = 'realtime'; render(); };
       });
       document.querySelectorAll('[data-id]').forEach((button) => {
-        button.onclick = () => { state.page = 'connector'; state.selectedId = button.dataset.id; state.formDirty = false; render(); };
+        button.onclick = () => { openConnector(button.dataset.id); };
       });
+    }
+
+    function renderConnectorRows() {
+      $('connectorRows').innerHTML = state.instances.map((item) => (
+        '<tr><td><strong>' + item.name + '</strong><br><span class="muted mono">' + item.id.slice(0, 8) + '</span></td>' +
+        '<td>' + providerMeta(item.provider).name + '</td>' +
+        '<td>' + badge(item.status) + '</td>' +
+        '<td>' + badge(item.health) + '</td>' +
+        '<td>' + item.daily_sent_count + '/' + item.daily_limit + '</td>' +
+        '<td>' + formatDateTime(item.last_sent_at) + '</td>' +
+        '<td><div class="summary-row"><button onclick="openConnector(\\'' + item.id + '\\')">Abrir</button><button onclick="quickHealth(\\'' + item.id + '\\')">Health</button></div></td></tr>'
+      )).join('') || '<tr><td colspan="7" class="muted">Nenhum conector cadastrado.</td></tr>';
     }
 
     function renderProviderSelect() {
@@ -583,6 +615,7 @@ export function adminHtml() {
     function renderPage() {
       $('realtimeView').classList.toggle('hidden', state.page !== 'realtime');
       $('connectorSection').classList.toggle('hidden', state.page !== 'connector');
+      $('connectorSection').classList.toggle('modal', state.page === 'connector');
       if (state.page === 'realtime') {
         $('pageTitle').textContent = 'Tempo real';
         $('pageSubtitle').textContent = 'Últimas mensagens de todos os conectores e origens.';
@@ -621,6 +654,25 @@ export function adminHtml() {
       setNotice('Novo conector.', '');
     }
 
+    window.openConnector = (id) => {
+      state.page = 'connector';
+      state.selectedId = id;
+      state.formDirty = false;
+      render();
+    };
+
+    window.quickHealth = async (id) => {
+      setNotice('Consultando health...', '');
+      try {
+        await api('/instances/' + id + '/health-check', { method: 'POST' });
+        await loadAll();
+        setNotice('Health OK.', 'ok');
+      } catch (error) {
+        await loadAll().catch(() => {});
+        setNotice(error.message, 'err');
+      }
+    };
+
     $('loginForm').onsubmit = async (event) => {
       event.preventDefault();
       localStorage.setItem('routerKey', $('loginKey').value.trim());
@@ -639,6 +691,8 @@ export function adminHtml() {
 
     $('refresh').onclick = () => loadAll().catch((error) => setNotice(error.message, 'err'));
     $('newConnector').onclick = newConnector;
+    $('newConnectorTop').onclick = newConnector;
+    $('closeConnector').onclick = () => { state.page = 'realtime'; state.formDirty = false; render(); };
     $('messageFilter').onchange = renderGlobalMessages;
     $('instanceForm').addEventListener('input', () => { state.formDirty = true; });
     $('instanceForm').addEventListener('change', () => { state.formDirty = true; });
@@ -653,6 +707,7 @@ export function adminHtml() {
       try {
         const saved = await api('/instances', { method: 'POST', body: JSON.stringify(formData()) });
         state.selectedId = saved.id;
+        state.page = 'realtime';
         state.formDirty = false;
         await loadAll();
         setNotice('Conector salvo.', 'ok');
@@ -687,6 +742,7 @@ export function adminHtml() {
       if (!item || !confirm('Excluir ' + item.name + '?')) return;
       await api('/instances/' + item.id, { method: 'DELETE' });
       state.selectedId = null;
+      state.page = 'realtime';
       await loadAll();
     };
 
