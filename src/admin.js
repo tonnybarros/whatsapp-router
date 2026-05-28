@@ -42,6 +42,11 @@ export function adminHtml() {
     .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
     .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
     .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .modal { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 24px; background: rgba(15, 23, 42, .56); }
+    .modal-card { width: min(980px, 100%); max-height: calc(100vh - 48px); overflow: auto; background: #fff; border: 1px solid #d8e0ea; border-radius: 8px; box-shadow: 0 24px 60px rgba(15, 23, 42, .28); }
+    .modal-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
+    .modal-head h3 { margin: 0; font-size: 18px; }
+    .modal-close { min-width: 38px; padding: 8px 0; font-size: 20px; line-height: 1; }
     .badge { display: inline-flex; align-items: center; min-height: 24px; padding: 0 8px; border-radius: 999px; background: #dbeafe; color: #1d4ed8; font-size: 12px; font-weight: 900; }
     .badge.active, .badge.ok, .badge.sent { background: #d1fadf; color: #05603a; }
     .badge.blocked, .badge.error, .badge.failed { background: #fee4e2; color: #b42318; }
@@ -130,12 +135,20 @@ export function adminHtml() {
         <div class="panel-head">
           <h3>Conectores do workspace</h3>
           <div class="actions">
+            <button id="newInstance" type="button">Novo conector</button>
             <button id="newKey" type="button">Gerar API key</button>
-            <button id="saveInstance" class="primary" type="button">Salvar conector</button>
           </div>
         </div>
-        <div class="panel-body">
-          <form id="instanceForm" class="grid-3">
+        <div id="instanceModal" class="modal hidden">
+          <div class="modal-card">
+            <div class="modal-head">
+              <h3 id="instanceModalTitle">Conector</h3>
+              <div class="actions">
+                <button id="saveInstance" class="primary" type="button">Salvar conector</button>
+                <button id="closeInstanceModal" class="modal-close" type="button">×</button>
+              </div>
+            </div>
+            <form id="instanceForm" class="panel-body grid-3">
             <input type="hidden" id="instanceId">
             <label>Nome <input id="name" required></label>
             <label>API
@@ -159,6 +172,7 @@ export function adminHtml() {
             <label>Headers JSON <textarea id="custom_headers" placeholder='{"X-Origem":"router"}'></textarea></label>
             <label>Body template JSON <textarea id="custom_body_template" placeholder='{"to":"{{to}}","message":"{{message}}"}'></textarea></label>
           </form>
+          </div>
         </div>
         <table>
           <thead><tr><th>Nome</th><th>API</th><th>Status</th><th>Saúde</th><th>Uso</th><th>Ações</th></tr></thead>
@@ -270,6 +284,21 @@ export function adminHtml() {
     function renderMessages() {
       $('messagesRows').innerHTML = state.messages.map((item) => '<tr><td>' + formatDate(item.created_at) + '</td><td class="mono">' + item.to + '</td><td>' + badge(item.status) + '</td><td>' + (item.source || '-') + '</td><td>' + (item.attempts?.at(-1)?.instance_name || '-') + '</td><td class="muted">' + messageError(item) + '</td></tr>').join('') || '<tr><td colspan="6">Nenhuma mensagem.</td></tr>';
     }
+    function openInstanceModal(title) {
+      $('instanceModalTitle').textContent = title;
+      $('instanceModal').classList.remove('hidden');
+    }
+    function closeInstanceModal() {
+      $('instanceModal').classList.add('hidden');
+    }
+    function clearInstanceForm() {
+      $('instanceForm').reset();
+      $('instanceId').value = '';
+      $('daily_limit').value = 50;
+      $('min_seconds_between_messages').value = 60;
+      $('provider').value = 'uazapi';
+      $('provider').onchange();
+    }
     window.editInstance = (id) => {
       const item = state.instances.find((instance) => instance.id === id);
       if (!item) return;
@@ -278,6 +307,8 @@ export function adminHtml() {
       }
       $('api_key').value = '';
       $('instanceId').value = item.id;
+      $('provider').onchange();
+      openInstanceModal('Editar ' + item.name);
     };
     window.healthInstance = async (id) => {
       await api('/api/admin/workspaces/' + selectedWorkspaceId() + '/instances/' + id + '/health-check', { method: 'POST', body: '{}' });
@@ -329,6 +360,11 @@ export function adminHtml() {
       setNotice('Nova API key: ' + data.api_key);
       await load();
     };
+    $('newInstance').onclick = () => {
+      clearInstanceForm();
+      openInstanceModal('Novo conector');
+    };
+    $('closeInstanceModal').onclick = closeInstanceModal;
     $('provider').onchange = () => {
       const meta = providers[$('provider').value] || providers.uazapi;
       $('base_url').placeholder = meta.base_url;
@@ -348,8 +384,8 @@ export function adminHtml() {
       payload.daily_limit = Number(payload.daily_limit || 50);
       payload.min_seconds_between_messages = Number(payload.min_seconds_between_messages || 60);
       await api('/api/admin/workspaces/' + selectedWorkspaceId() + '/instances', { method: 'POST', body: JSON.stringify(payload) });
-      $('instanceForm').reset();
-      $('instanceId').value = '';
+      clearInstanceForm();
+      closeInstanceModal();
       await loadWorkspace();
     };
     if (key()) load().catch((error) => {

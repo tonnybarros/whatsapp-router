@@ -47,6 +47,11 @@ export function portalHtml() {
     .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
     .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
     .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .modal { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 24px; background: rgba(15, 23, 42, .56); }
+    .modal-card { width: min(980px, 100%); max-height: calc(100vh - 48px); overflow: auto; background: #fff; border: 1px solid #d8e0ea; border-radius: 8px; box-shadow: 0 24px 60px rgba(15, 23, 42, .28); }
+    .modal-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
+    .modal-head h3 { margin: 0; font-size: 18px; }
+    .modal-close { min-width: 38px; padding: 8px 0; font-size: 20px; line-height: 1; }
     .badge { display: inline-flex; align-items: center; min-height: 24px; padding: 0 8px; border-radius: 999px; background: #dbeafe; color: #1d4ed8; font-size: 12px; font-weight: 900; }
     .badge.active, .badge.ok, .badge.sent, .badge.dry_run { background: #d1fadf; color: #05603a; }
     .badge.paused, .badge.error, .badge.failed { background: #fee4e2; color: #b42318; }
@@ -126,11 +131,18 @@ export function portalHtml() {
             <h3>Conectores</h3>
             <div class="actions">
               <button id="newConnector" type="button">Novo Conector</button>
-              <button id="saveInstance" class="primary" type="button">Salvar</button>
             </div>
           </div>
-          <div class="panel-body">
-            <form id="instanceForm" class="grid-3">
+          <div id="instanceModal" class="modal hidden">
+            <div class="modal-card">
+              <div class="modal-head">
+                <h3 id="instanceModalTitle">Conector</h3>
+                <div class="actions">
+                  <button id="saveInstance" class="primary" type="button">Salvar</button>
+                  <button id="closeInstanceModal" class="modal-close" type="button">×</button>
+                </div>
+              </div>
+              <form id="instanceForm" class="panel-body grid-3">
               <input type="hidden" id="instanceId">
               <label>Nome <input id="name" required></label>
               <label>API
@@ -154,6 +166,7 @@ export function portalHtml() {
               <label>Headers JSON <textarea id="custom_headers" placeholder='{"X-Origem":"router"}'></textarea></label>
               <label>Body template JSON <textarea id="custom_body_template" placeholder='{"to":"{{to}}","message":"{{message}}"}'></textarea></label>
             </form>
+            </div>
           </div>
           <table>
             <thead><tr><th>Nome</th><th>API</th><th>Status</th><th>Saúde</th><th>Uso</th><th>Ações</th></tr></thead>
@@ -261,6 +274,15 @@ export function portalHtml() {
       $('instanceId').value = '';
       $('daily_limit').value = 50;
       $('min_seconds_between_messages').value = 60;
+      $('provider').value = 'uazapi';
+      $('provider').onchange();
+    }
+    function openInstanceModal(title) {
+      $('instanceModalTitle').textContent = title;
+      $('instanceModal').classList.remove('hidden');
+    }
+    function closeInstanceModal() {
+      $('instanceModal').classList.add('hidden');
     }
     window.editInstance = (id) => {
       const item = state.instances.find((instance) => instance.id === id);
@@ -270,8 +292,10 @@ export function portalHtml() {
       }
       $('api_key').value = '';
       $('instanceId').value = item.id;
+      $('provider').onchange();
       state.page = 'connector';
       renderPage();
+      openInstanceModal('Editar ' + item.name);
     };
     window.healthInstance = async (id) => {
       await api('/api/instances/' + id + '/health-check', { method: 'POST', body: '{}' });
@@ -297,7 +321,11 @@ export function portalHtml() {
     document.querySelectorAll('.nav button').forEach((button) => {
       button.onclick = () => { state.page = button.dataset.page; renderPage(); };
     });
-    $('newConnector').onclick = () => clearForm();
+    $('newConnector').onclick = () => {
+      clearForm();
+      openInstanceModal('Novo conector');
+    };
+    $('closeInstanceModal').onclick = closeInstanceModal;
     $('provider').onchange = () => {
       const meta = providers[$('provider').value] || providers.uazapi;
       $('base_url').placeholder = meta.base_url;
@@ -318,6 +346,7 @@ export function portalHtml() {
       payload.min_seconds_between_messages = Number(payload.min_seconds_between_messages || 60);
       await api('/api/instances', { method: 'POST', body: JSON.stringify(payload) });
       clearForm();
+      closeInstanceModal();
       await load();
     };
     $('sendTest').onclick = async () => {
