@@ -64,11 +64,11 @@ PORT=3027
 PUBLIC_BASE_URL=https://multiapi.tectonny.com.br
 ADMIN_KEY=troque-por-uma-chave-forte
 STORE_DRIVER=postgres
-DATABASE_URL=postgres:///whatsapp_router?host=/var/run/postgresql
+DATABASE_URL=postgres:///whatsapp_router_v3?host=/var/run/postgresql
 N8N_VERIFY_WEBHOOK_URL=
 ```
 
-As tabelas da V3 usam prefixo `v3_router_*`, entao nao misturam dados com a V2.
+A V3 pode usar um banco proprio, como `whatsapp_router_v3`. As tabelas tambem usam prefixo `v3_router_*`, entao nao misturam dados com a V2.
 
 ## Qual instalacao escolher?
 
