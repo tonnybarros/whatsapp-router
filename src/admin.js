@@ -144,15 +144,20 @@ export function adminHtml() {
                 <option value="waha">WAHA</option>
                 <option value="evolution_go">Evolution Go</option>
                 <option value="evolution_api">Evolution API</option>
+                <option value="custom">Custom API</option>
               </select>
             </label>
             <label>Base URL <input id="base_url" required></label>
             <label>Token/API key <input id="api_key" placeholder="mantém atual se vazio"></label>
             <label>Sessão <input id="session"></label>
             <label>Instância <input id="instance"></label>
+            <label>Auth header <input id="auth_header" placeholder="padrão da API"></label>
             <label>Limite/dia <input id="daily_limit" type="number" value="50"></label>
             <label>Intervalo mínimo <input id="min_seconds_between_messages" type="number" value="60"></label>
             <label>Send path <input id="send_path" placeholder="padrão da API"></label>
+            <label>Health path <input id="health_path" placeholder="padrão da API"></label>
+            <label>Headers JSON <textarea id="custom_headers" placeholder='{"X-Origem":"router"}'></textarea></label>
+            <label>Body template JSON <textarea id="custom_body_template" placeholder='{"to":"{{to}}","message":"{{message}}"}'></textarea></label>
           </form>
         </div>
         <table>
@@ -176,7 +181,8 @@ export function adminHtml() {
       uazapi: { base_url: 'https://seu-subdominio.uazapi.com', send_path: '/send/text', session: '', instance: '' },
       waha: { base_url: 'https://waha.seudominio.com', send_path: '/api/sendText', session: 'default', instance: '' },
       evolution_go: { base_url: 'https://evolution-go.seudominio.com', send_path: '/send/text', session: '', instance: '' },
-      evolution_api: { base_url: 'https://evolution.seudominio.com', send_path: '', session: '', instance: 'minha-instancia' }
+      evolution_api: { base_url: 'https://evolution.seudominio.com', send_path: '', session: '', instance: 'minha-instancia' },
+      custom: { base_url: 'https://api.seudominio.com', send_path: '/send', session: '', instance: '' }
     };
     const state = { overview: null, instances: [], messages: [] };
     const $ = (id) => document.getElementById(id);
@@ -267,7 +273,7 @@ export function adminHtml() {
     window.editInstance = (id) => {
       const item = state.instances.find((instance) => instance.id === id);
       if (!item) return;
-      for (const field of ['name', 'provider', 'base_url', 'session', 'instance', 'daily_limit', 'min_seconds_between_messages', 'send_path']) {
+      for (const field of ['name', 'provider', 'base_url', 'auth_header', 'session', 'instance', 'daily_limit', 'min_seconds_between_messages', 'send_path', 'health_path', 'custom_headers', 'custom_body_template']) {
         $(field).value = item[field] || '';
       }
       $('api_key').value = '';
@@ -327,12 +333,14 @@ export function adminHtml() {
       const meta = providers[$('provider').value] || providers.uazapi;
       $('base_url').placeholder = meta.base_url;
       $('send_path').placeholder = meta.send_path || 'padrão da API';
+      $('health_path').placeholder = 'padrão da API';
+      $('auth_header').placeholder = $('provider').value === 'custom' ? 'Authorization' : 'padrão da API';
       $('session').placeholder = meta.session;
       $('instance').placeholder = meta.instance;
     };
     $('saveInstance').onclick = async () => {
       const payload = {};
-      for (const field of ['name', 'provider', 'base_url', 'api_key', 'session', 'instance', 'daily_limit', 'min_seconds_between_messages', 'send_path']) {
+      for (const field of ['name', 'provider', 'base_url', 'api_key', 'auth_header', 'session', 'instance', 'daily_limit', 'min_seconds_between_messages', 'send_path', 'health_path', 'custom_headers', 'custom_body_template']) {
         payload[field] = $(field).value.trim();
       }
       payload.id = $('instanceId').value || undefined;

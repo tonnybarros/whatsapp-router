@@ -124,6 +124,24 @@ export function apiDocsHtml() {
     </section>
 
     <section>
+      <h2>Provider Custom API</h2>
+      <p>Cada workspace pode cadastrar um conector <code>custom</code> para enviar por qualquer API HTTP compatível. A rotação, fila, limite diário, intervalo, failover e logs continuam iguais aos outros providers.</p>
+      <pre>{
+  "name": "Minha API",
+  "provider": "custom",
+  "base_url": "https://api.seudominio.com",
+  "send_path": "/send",
+  "health_path": "/health",
+  "auth_header": "Authorization",
+  "api_key": "Bearer token-da-api",
+  "custom_headers": "{\\"X-Origem\\":\\"router\\"}",
+  "custom_body_template": "{\\"to\\":\\"{{to}}\\",\\"message\\":\\"{{message}}\\",\\"source\\":\\"{{source}}\\"}"
+}</pre>
+      <p>Placeholders disponíveis: <code>{{to}}</code>, <code>{{number}}</code>, <code>{{message}}</code>, <code>{{text}}</code>, <code>{{source}}</code>, <code>{{track_id}}</code>, <code>{{external_id}}</code>, <code>{{session}}</code> e <code>{{instance}}</code>.</p>
+      <p>Prefira guardar segredo no campo <code>Token/API Key</code> e usar <code>auth_header</code> para dizer o nome do header. Use <code>custom_headers</code> para headers extras.</p>
+    </section>
+
+    <section>
       <h2>Payload de Envio</h2>
       <table>
         <thead><tr><th>Campo</th><th>Tipo</th><th>Obrigatório</th><th>Função</th></tr></thead>

@@ -64,6 +64,21 @@ export function openApiSpec() {
             name: { type: "string", example: "Cliente" },
             workspace_name: { type: "string", example: "Empresa do Cliente" }
           }
+        },
+        ConnectorRequest: {
+          type: "object",
+          required: ["name", "provider", "base_url"],
+          properties: {
+            name: { type: "string", example: "Custom vendas" },
+            provider: { type: "string", enum: ["uazapi", "waha", "evolution_go", "evolution_api", "custom"], example: "custom" },
+            base_url: { type: "string", example: "https://api.seudominio.com" },
+            api_key: { type: "string", description: "Token do provider. Em custom, pode ser vazio quando a API nao usa autenticação." },
+            auth_header: { type: "string", example: "Authorization" },
+            send_path: { type: "string", example: "/send" },
+            health_path: { type: "string", example: "/health" },
+            custom_headers: { type: "string", example: "{\"X-Origem\":\"router\"}" },
+            custom_body_template: { type: "string", example: "{\"to\":\"{{to}}\",\"message\":\"{{message}}\"}" }
+          }
         }
       }
     },
@@ -145,6 +160,12 @@ export function openApiSpec() {
         },
         post: {
           summary: "Cadastrar conector no workspace",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": { schema: { $ref: "#/components/schemas/ConnectorRequest" } }
+            }
+          },
           responses: { 201: { description: "Conector cadastrado." } }
         }
       },

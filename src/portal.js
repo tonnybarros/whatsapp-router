@@ -139,15 +139,20 @@ export function portalHtml() {
                   <option value="waha">WAHA</option>
                   <option value="evolution_go">Evolution Go</option>
                   <option value="evolution_api">Evolution API</option>
+                  <option value="custom">Custom API</option>
                 </select>
               </label>
               <label>Base URL <input id="base_url" required></label>
               <label>Token/API key <input id="api_key" placeholder="mantém atual se vazio"></label>
               <label>Sessão <input id="session"></label>
               <label>Instância <input id="instance"></label>
+              <label>Auth header <input id="auth_header" placeholder="padrão da API"></label>
               <label>Limite/dia <input id="daily_limit" type="number" value="50"></label>
               <label>Intervalo mínimo <input id="min_seconds_between_messages" type="number" value="60"></label>
               <label>Send path <input id="send_path" placeholder="padrão da API"></label>
+              <label>Health path <input id="health_path" placeholder="padrão da API"></label>
+              <label>Headers JSON <textarea id="custom_headers" placeholder='{"X-Origem":"router"}'></textarea></label>
+              <label>Body template JSON <textarea id="custom_body_template" placeholder='{"to":"{{to}}","message":"{{message}}"}'></textarea></label>
             </form>
           </div>
           <table>
@@ -175,12 +180,17 @@ export function portalHtml() {
       uazapi: { base_url: 'https://seu-subdominio.uazapi.com', send_path: '/send/text', session: '', instance: '' },
       waha: { base_url: 'https://waha.seudominio.com', send_path: '/api/sendText', session: 'default', instance: '' },
       evolution_go: { base_url: 'https://evolution-go.seudominio.com', send_path: '/send/text', session: '', instance: '' },
-      evolution_api: { base_url: 'https://evolution.seudominio.com', send_path: '', session: '', instance: 'minha-instancia' }
+      evolution_api: { base_url: 'https://evolution.seudominio.com', send_path: '', session: '', instance: 'minha-instancia' },
+      custom: { base_url: 'https://api.seudominio.com', send_path: '/send', session: '', instance: '' }
     };
     const state = { me: null, instances: [], messages: [], page: 'realtime' };
     const $ = (id) => document.getElementById(id);
     const key = () => localStorage.getItem('routerV3WorkspaceKey') || '';
-    const headers = () => ({ 'Content-Type': 'application/json', 'X-Router-Key': key() });
+    const headers = (hasBody = false) => {
+      const value = { 'X-Router-Key': key() };
+      if (hasBody) value['Content-Type'] = 'application/json';
+      return value;
+    };
     function setNotice(text) { $('notice').textContent = text; $('loginNotice').textContent = text; }
     function statusLabel(value) {
       return { active: 'Ativo', paused: 'Pausado', ok: 'OK', error: 'Erro', unknown: 'Desconhecido', sent: 'Enviado', failed: 'Erro', dry_run: 'Teste', queued: 'Na fila', processing: 'Processando', selected: 'Selecionado' }[value] || value || '-';
@@ -205,7 +215,8 @@ export function portalHtml() {
       return attempt?.instance_name || state.instances.find((i) => i.id === item.selected_instance_id)?.name || '-';
     }
     async function api(path, options = {}) {
-      const response = await fetch(path, { ...options, headers: { ...headers(), ...(options.headers || {}) } });
+      const hasBody = Object.prototype.hasOwnProperty.call(options, 'body') && options.body !== undefined;
+      const response = await fetch(path, { ...options, headers: { ...headers(hasBody), ...(options.headers || {}) } });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || data.message || 'HTTP ' + response.status);
       return data;
@@ -254,7 +265,7 @@ export function portalHtml() {
     window.editInstance = (id) => {
       const item = state.instances.find((instance) => instance.id === id);
       if (!item) return;
-      for (const field of ['name', 'provider', 'base_url', 'session', 'instance', 'daily_limit', 'min_seconds_between_messages', 'send_path']) {
+      for (const field of ['name', 'provider', 'base_url', 'auth_header', 'session', 'instance', 'daily_limit', 'min_seconds_between_messages', 'send_path', 'health_path', 'custom_headers', 'custom_body_template']) {
         $(field).value = item[field] || '';
       }
       $('api_key').value = '';
@@ -291,12 +302,14 @@ export function portalHtml() {
       const meta = providers[$('provider').value] || providers.uazapi;
       $('base_url').placeholder = meta.base_url;
       $('send_path').placeholder = meta.send_path || 'padrão da API';
+      $('health_path').placeholder = 'padrão da API';
+      $('auth_header').placeholder = $('provider').value === 'custom' ? 'Authorization' : 'padrão da API';
       $('session').placeholder = meta.session;
       $('instance').placeholder = meta.instance;
     };
     $('saveInstance').onclick = async () => {
       const payload = {};
-      for (const field of ['name', 'provider', 'base_url', 'api_key', 'session', 'instance', 'daily_limit', 'min_seconds_between_messages', 'send_path']) {
+      for (const field of ['name', 'provider', 'base_url', 'api_key', 'auth_header', 'session', 'instance', 'daily_limit', 'min_seconds_between_messages', 'send_path', 'health_path', 'custom_headers', 'custom_body_template']) {
         payload[field] = $(field).value.trim();
       }
       payload.id = $('instanceId').value || undefined;
