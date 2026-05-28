@@ -94,7 +94,7 @@ function providerError(error) {
 
 function markProviderFailure(instance, error) {
   const cooldownSeconds = instance.error_cooldown_seconds || config.defaultErrorCooldownSeconds;
-  if (!error.status || error.status >= 500) {
+  if (!error.status || error.status >= 500 || providerDisconnected(error)) {
     instance.health = "error";
     instance.cooldown_until = new Date(Date.now() + cooldownSeconds * 1000).toISOString();
   }
@@ -110,9 +110,15 @@ function isFailoverRetryable(error, body) {
 }
 
 function providerDisconnected(error) {
-  if (error.status !== 503) return false;
+  if (![422, 503].includes(error.status)) return false;
   const message = String(error.data?.message || error.data?.error || "").toLowerCase();
-  return message.includes("disconnected") || message.includes("desconect");
+  const status = String(error.data?.status || "").toLowerCase();
+  const expected = Array.isArray(error.data?.expected)
+    ? error.data.expected.map((item) => String(item).toLowerCase())
+    : [];
+  return message.includes("disconnected")
+    || message.includes("desconect")
+    || (message.includes("session status is not as expected") && status === "failed" && expected.includes("working"));
 }
 
 function providerRejectedBeforeSend(error) {
