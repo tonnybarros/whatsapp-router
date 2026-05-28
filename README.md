@@ -38,6 +38,12 @@ O cadastro público por código WhatsApp fica em:
 https://multiapi.tectonny.com.br/cadastro
 ```
 
+O painel de cada usuário/workspace fica em:
+
+```txt
+https://multiapi.tectonny.com.br/painel
+```
+
 O cadastro por WhatsApp funciona assim:
 
 1. O usuario chama `POST /api/auth/request-code` com `phone` e `name`.

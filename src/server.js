@@ -5,6 +5,7 @@ import crypto from "node:crypto";
 import { config } from "./config.js";
 import { adminHtml } from "./admin.js";
 import { registerHtml } from "./register.js";
+import { portalHtml } from "./portal.js";
 import { apiDocsHtml } from "./api-docs.js";
 import { openApiSpec, swaggerHtml } from "./openapi.js";
 import { createStore } from "./store-factory.js";
@@ -760,6 +761,14 @@ app.get("/cadastro", async (_request, reply) => {
 
 app.get("/register", async (_request, reply) => {
   reply.type("text/html").send(registerHtml());
+});
+
+app.get("/painel", async (_request, reply) => {
+  reply.type("text/html").send(portalHtml());
+});
+
+app.get("/portal", async (_request, reply) => {
+  reply.type("text/html").send(portalHtml());
 });
 
 app.get("/docs", async (_request, reply) => {

@@ -49,6 +49,7 @@ export function apiDocsHtml() {
         <thead><tr><th>Método</th><th>Rota</th><th>Uso</th></tr></thead>
         <tbody>
           <tr><td><code>GET</code></td><td><code>/cadastro</code></td><td>Página pública para o usuário pedir e validar o código.</td></tr>
+          <tr><td><code>GET</code></td><td><code>/painel</code></td><td>Painel do usuário/workspace com conectores, mensagens e teste de envio.</td></tr>
           <tr><td><code>POST</code></td><td><code>/api/auth/request-code</code></td><td>Gera código e envia para o webhook n8n configurado.</td></tr>
           <tr><td><code>POST</code></td><td><code>/api/auth/verify-code</code></td><td>Valida código, cria usuário, workspace e API key.</td></tr>
         </tbody>

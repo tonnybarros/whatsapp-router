@@ -107,6 +107,15 @@ export function openApiSpec() {
           }
         }
       },
+      "/painel": {
+        get: {
+          summary: "Painel do usuário/workspace",
+          security: [],
+          responses: {
+            200: { description: "HTML do painel do workspace." }
+          }
+        }
+      },
       "/api/send": {
         post: {
           summary: "Enviar mensagem pelo workspace autenticado",

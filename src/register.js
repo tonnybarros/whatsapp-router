@@ -20,6 +20,7 @@ export function registerHtml() {
     input { width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; font: inherit; color: #0f172a; }
     button { width: 100%; border: 1px solid #0f766e; background: #0f766e; color: #fff; border-radius: 8px; padding: 12px 14px; font: inherit; font-weight: 900; cursor: pointer; }
     button.secondary { margin-top: 8px; background: #fff; color: #0f766e; }
+    a.button { display: block; text-align: center; text-decoration: none; width: 100%; border: 1px solid #155eef; background: #155eef; color: #fff; border-radius: 8px; padding: 12px 14px; font-weight: 900; margin-top: 10px; }
     pre { overflow: auto; background: #111827; color: #e5edf7; border-radius: 8px; padding: 12px; line-height: 1.45; }
     code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
     .notice { margin: 12px 0; padding: 12px 14px; border: 1px solid #99f6e4; background: #f0fdfa; color: #0f766e; border-radius: 8px; }
@@ -58,6 +59,7 @@ export function registerHtml() {
       <div id="stepDone" class="hidden">
         <p>Sua API foi criada. Guarde a chave abaixo; ela aparece completa somente agora.</p>
         <pre id="result">{}</pre>
+        <a id="openPanel" class="button" href="/painel">Abrir painel</a>
       </div>
     </section>
   </main>
@@ -110,10 +112,13 @@ export function registerHtml() {
         const data = { ...payload(), code: $('code').value.trim() };
         if (!data.code) throw new Error('Informe o código.');
         const result = await post('/api/auth/verify-code', data);
+        const apiKey = result.api_key || result.api_key_preview;
+        if (result.api_key) localStorage.setItem('routerV3WorkspaceKey', result.api_key);
         $('result').textContent = JSON.stringify({
           workspace: result.workspace?.name,
           send_url: result.send_url,
-          api_key: result.api_key || result.api_key_preview,
+          panel_url: location.origin + '/painel',
+          api_key: apiKey,
           header: 'X-Router-Key'
         }, null, 2);
         setNotice('Cadastro concluído.');
