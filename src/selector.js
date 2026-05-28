@@ -21,6 +21,7 @@ export function normalizeInstance(input) {
 
   return {
     id: input.id,
+    workspace_id: input.workspace_id,
     name: input.name,
     provider: input.provider,
     base_url: input.base_url,

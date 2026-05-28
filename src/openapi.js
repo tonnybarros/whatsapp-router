@@ -2,65 +2,32 @@ export function openApiSpec() {
   return {
     openapi: "3.0.3",
     info: {
-      title: "WhatsApp Router API",
-      version: "2.0.0",
-      description: `API para enviar mensagens WhatsApp por conectores uazapi, WAHA, Evolution Go e Evolution API. Esta é a V2 com suporte a PostgreSQL.
-
-## Instalação
-
-Para VPS/LXC, o recomendado é **Node.js + PM2 + PostgreSQL**:
-
-\`\`\`bash
-git clone https://github.com/tonnybarros/whatsapp-router.git
-cd whatsapp-router
-npm ci
-cp .env.example .env
-npm run check
-pm2 start ecosystem.config.cjs
-pm2 save
-\`\`\`
-
-No \`.env\`, configure \`STORE_DRIVER=postgres\` e \`DATABASE_URL\`.
-
-Para Docker Compose:
-
-\`\`\`bash
-git clone https://github.com/tonnybarros/whatsapp-router.git
-cd whatsapp-router
-cp .env.example .env
-docker compose up -d --build
-\`\`\`
-
-No \`.env\`, configure \`ROUTER_API_KEY\`. Esse é o token usado no header \`X-Router-Key\` ou em \`Authorization: Bearer\`.
-
-Para manter a versão básica, use a tag \`v1.0.0-basic\`. Em produção, a V2 pode ficar no domínio raiz e a V1 em \`/v1\`.
-
-Documentação completa: [abrir /docs](/docs).`
+      title: "WhatsApp Router V3 API",
+      version: "3.0.0",
+      description: "API multiusuário com workspaces, API keys por cliente, cadastro por código WhatsApp via n8n e envio roteado por conectores isolados."
     },
     externalDocs: {
-      description: "Documentação completa, instalação, exemplos e campos do JSON",
+      description: "Documentação completa",
       url: "/docs"
     },
     servers: [
-      { url: "https://api.tectonny.com.br", description: "Produção" },
-      { url: "http://127.0.0.1:3025", description: "Local" }
+      { url: "https://multiapi.tectonny.com.br", description: "Produção V3" },
+      { url: "http://127.0.0.1:3027", description: "Local V3" }
     ],
-    security: [
-      { RouterKey: [] },
-      { BearerAuth: [] }
-    ],
+    security: [{ RouterKey: [] }],
     components: {
       securitySchemes: {
         RouterKey: {
           type: "apiKey",
           in: "header",
           name: "X-Router-Key",
-          description: "Use o valor de ROUTER_API_KEY do .env do whatsapp-router."
+          description: "API key do workspace, gerada no admin ou no cadastro por código."
         },
-        BearerAuth: {
-          type: "http",
-          scheme: "bearer",
-          description: "Alternativa: Authorization: Bearer ROUTER_API_KEY."
+        AdminKey: {
+          type: "apiKey",
+          in: "header",
+          name: "X-Admin-Key",
+          description: "Chave ADMIN_KEY para rotas de administração."
         }
       },
       schemas: {
@@ -68,249 +35,119 @@ Documentação completa: [abrir /docs](/docs).`
           type: "object",
           required: ["to"],
           properties: {
-            to: {
-              type: "string",
-              example: "5599999999999",
-              description: "Número no formato DDI + DDD + número."
-            },
-            message: {
-              type: "string",
-              example: "Mensagem enviada pelo Swagger",
-              description: "Texto da mensagem. Também é aceito o campo text."
-            },
-            text: {
-              type: "string",
-              example: "Mensagem enviada pelo Swagger",
-              description: "Alias de message."
-            },
-            source: {
-              type: "string",
-              example: "swagger",
-              description: "Origem da chamada para auditoria no painel. Exemplos: n8n, whazap, swagger."
-            },
-            dry_run: {
-              type: "boolean",
-              example: true,
-              description: "Quando true, valida o seletor sem enviar mensagem real."
-            },
-            queue: {
-              type: "boolean",
-              example: false,
-              description: "Quando true, coloca a mensagem em fila e retorna 202 imediatamente. O worker envia depois respeitando intervalo, limite diário, cooldown, failover e fallback."
-            },
-            connector_id: {
-              type: "string",
-              example: "b5bf0c76-25a6-4b52-8215-1eecaab2d520",
-              description: "Opcional. Força o envio por um conector específico."
-            },
-            fallback_allowed: {
-              type: "boolean",
-              example: false,
-              description: "Quando true e o connector_id preferido estiver inelegível, permite usar outro conector elegível."
-            },
-            failover: {
-              type: "boolean",
-              example: false,
-              description: "Quando true, tenta outro conector em falhas sem resposta HTTP do provider. Por segurança, HTTP 500 não é reenviado no modo padrão para evitar duplicidade."
-            },
-            failover_mode: {
-              type: "string",
-              enum: ["safe", "aggressive"],
-              example: "safe",
-              description: "Modo aggressive também retenta erros HTTP 5xx, com risco de mensagem duplicada se o provider enviou e respondeu erro."
-            },
-            external_id: {
-              type: "string",
-              example: "pedido-123",
-              description: "ID externo para rastrear a mensagem no seu sistema. Exemplo: pedido, usuario ou execution id do n8n."
-            }
-          },
-          anyOf: [
-            { required: ["message"] },
-            { required: ["text"] }
-          ]
-        },
-        MessageResponse: {
-          type: "object",
-          properties: {
-            id: { type: "string" },
-            external_id: { type: "string", nullable: true },
-            to: { type: "string" },
-            message: { type: "string" },
-            source: { type: "string" },
-            status: { type: "string", example: "dry_run", description: "Status atual: queued, processing, selected, sent, dry_run ou failed." },
-            selected_instance_id: { type: "string", nullable: true, description: "Conector escolhido para a tentativa atual/final." },
-            requested_connector_id: { type: "string", nullable: true, description: "Conector solicitado no payload, quando informado." },
-            provider: { type: "string", nullable: true, description: "Provider usado na tentativa final." },
-            dry_run: { type: "boolean", description: "Indica teste sem envio real." },
-            queued: { type: "boolean", description: "Indica que a mensagem entrou pela fila." },
-            fallback_allowed: { type: "boolean", description: "Indica se a chamada permitia trocar de conector." },
-            failover: { type: "boolean", description: "Indica se a chamada permitia retentativa em outro conector." },
-            failover_mode: { type: "string", nullable: true, description: "Modo de failover usado: safe ou aggressive." },
-            attempts: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  instance_id: { type: "string" },
-                  instance_name: { type: "string" },
-                  provider: { type: "string" },
-                  status: { type: "string" },
-                  at: { type: "string" },
-                  error: { type: "object", nullable: true }
-                }
-              }
-            },
-            error: { type: "object", nullable: true }
+            to: { type: "string", example: "5511999999999" },
+            message: { type: "string", example: "Mensagem enviada pelo Swagger" },
+            text: { type: "string", example: "Alias de message" },
+            source: { type: "string", example: "n8n" },
+            queue: { type: "boolean", example: true },
+            dry_run: { type: "boolean", example: false },
+            connector_id: { type: "string" },
+            failover: { type: "boolean", example: true },
+            failover_mode: { type: "string", enum: ["safe", "aggressive"], example: "safe" },
+            external_id: { type: "string", example: "pedido-123" }
           }
         },
-        Connector: {
+        RequestCodeRequest: {
           type: "object",
+          required: ["phone"],
           properties: {
-            id: { type: "string" },
-            name: { type: "string" },
-            provider: { type: "string", enum: ["uazapi", "waha", "evolution_go", "evolution_api"] },
-            base_url: { type: "string" },
-            status: { type: "string" },
-            health: { type: "string" },
-            daily_limit: { type: "integer" },
-            daily_sent_count: { type: "integer" },
-            last_sent_at: { type: "string", nullable: true },
-            has_api_key: { type: "boolean" }
+            phone: { type: "string", example: "5511999999999" },
+            name: { type: "string", example: "Cliente" }
+          }
+        },
+        VerifyCodeRequest: {
+          type: "object",
+          required: ["phone", "code"],
+          properties: {
+            phone: { type: "string", example: "5511999999999" },
+            code: { type: "string", example: "123456" },
+            name: { type: "string", example: "Cliente" },
+            workspace_name: { type: "string", example: "Empresa do Cliente" }
           }
         }
       }
     },
     paths: {
-      "/api/v1/messages/send": {
+      "/api/auth/request-code": {
         post: {
-          tags: ["Messages"],
-          summary: "Enviar mensagem",
-          description: "Envia mensagem pelo seletor automático ou por um conector específico.",
+          summary: "Solicitar código WhatsApp",
+          security: [],
           requestBody: {
             required: true,
             content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/SendMessageRequest" },
-                examples: {
-                  dryRun: {
-                    summary: "Teste sem enviar",
-                    value: {
-                      to: "5599999999999",
-                      message: "Teste dry run pelo Swagger",
-                      source: "swagger",
-                      dry_run: true
-                    }
-                  },
-                  realSend: {
-                    summary: "Envio real",
-                    value: {
-                      to: "5599999999999",
-                      message: "Mensagem real pelo Swagger",
-                      source: "swagger",
-                      dry_run: false,
-                      failover: true
-                    }
-                  },
-                  queuedBatch: {
-                    summary: "Enviar por fila",
-                    value: {
-                      to: "5599999999999",
-                      message: "Mensagem em fila pelo Swagger",
-                      source: "swagger",
-                      queue: true,
-                      failover: true,
-                      fallback_allowed: true,
-                      failover_mode: "safe"
-                    }
-                  }
-                }
-              }
+              "application/json": { schema: { $ref: "#/components/schemas/RequestCodeRequest" } }
             }
           },
           responses: {
-            "200": {
-              description: "Mensagem selecionada/enviada ou dry_run executado.",
-              content: { "application/json": { schema: { $ref: "#/components/schemas/MessageResponse" } } }
-            },
-            "202": {
-              description: "Mensagem entrou na fila.",
-              content: { "application/json": { schema: { $ref: "#/components/schemas/MessageResponse" } } }
-            },
-            "409": { description: "Nenhum conector elegível." },
-            "422": { description: "Payload inválido ou provider recusou destino." },
-            "502": { description: "Falha no provider." }
+            200: { description: "Código criado e enviado ao webhook n8n quando configurado." }
           }
         }
       },
-      "/api/v1/send": {
+      "/api/auth/verify-code": {
         post: {
-          tags: ["Messages"],
-          summary: "Alias curto para envio",
+          summary: "Validar código e criar workspace",
+          security: [],
           requestBody: {
             required: true,
-            content: { "application/json": { schema: { $ref: "#/components/schemas/SendMessageRequest" } } }
+            content: {
+              "application/json": { schema: { $ref: "#/components/schemas/VerifyCodeRequest" } }
+            }
           },
           responses: {
-            "200": { description: "OK", content: { "application/json": { schema: { $ref: "#/components/schemas/MessageResponse" } } } }
+            200: { description: "Usuário/workspace criados. A API key é retornada uma única vez." }
           }
         }
       },
-      "/api/v1/whatsapp/send": {
+      "/api/send": {
         post: {
-          tags: ["Messages"],
-          summary: "Alias descritivo para envio WhatsApp",
+          summary: "Enviar mensagem pelo workspace autenticado",
           requestBody: {
             required: true,
-            content: { "application/json": { schema: { $ref: "#/components/schemas/SendMessageRequest" } } }
+            content: {
+              "application/json": { schema: { $ref: "#/components/schemas/SendMessageRequest" } }
+            }
           },
           responses: {
-            "200": { description: "OK", content: { "application/json": { schema: { $ref: "#/components/schemas/MessageResponse" } } } }
+            200: { description: "Mensagem enviada ou dry_run executado." },
+            202: { description: "Mensagem colocada na fila." },
+            409: { description: "Nenhuma instância elegível." }
           }
         }
       },
-      "/api/v1/connectors": {
+      "/api/me": {
         get: {
-          tags: ["Connectors"],
-          summary: "Listar conectores",
-          responses: {
-            "200": {
-              description: "Lista de conectores cadastrados.",
-              content: {
-                "application/json": {
-                  schema: { type: "array", items: { $ref: "#/components/schemas/Connector" } }
-                }
-              }
-            }
-          }
+          summary: "Ver workspace da API key atual",
+          responses: { 200: { description: "Workspace e chave atual." } }
         }
       },
-      "/api/v1/messages": {
+      "/api/instances": {
         get: {
-          tags: ["Messages"],
-          summary: "Listar mensagens recentes",
-          parameters: [
-            { name: "limit", in: "query", schema: { type: "integer", default: 100, maximum: 500 } }
-          ],
-          responses: {
-            "200": {
-              description: "Histórico recente.",
-              content: {
-                "application/json": {
-                  schema: { type: "array", items: { $ref: "#/components/schemas/MessageResponse" } }
-                }
-              }
-            }
-          }
+          summary: "Listar conectores do workspace",
+          responses: { 200: { description: "Conectores." } }
+        },
+        post: {
+          summary: "Cadastrar conector no workspace",
+          responses: { 201: { description: "Conector cadastrado." } }
         }
       },
-      "/api/v1/health": {
+      "/api/messages": {
         get: {
-          tags: ["Health"],
-          summary: "Status do router",
-          responses: {
-            "200": { description: "Status geral do serviço." }
-          }
+          summary: "Listar mensagens do workspace",
+          responses: { 200: { description: "Mensagens." } }
+        }
+      },
+      "/api/admin/overview": {
+        get: {
+          summary: "Visão geral admin",
+          security: [{ AdminKey: [] }],
+          responses: { 200: { description: "Usuários, workspaces, chaves e exemplos." } }
+        }
+      },
+      "/api/admin/settings": {
+        put: {
+          summary: "Configurar webhook n8n do código",
+          security: [{ AdminKey: [] }],
+          responses: { 200: { description: "Configuração salva." } }
         }
       }
     }
@@ -323,26 +160,20 @@ export function swaggerHtml() {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>WhatsApp Router Swagger</title>
+  <title>WhatsApp Router V3 Swagger</title>
   <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
-  <style>
-    body { margin: 0; background: #f7f9fc; }
-    .topbar { display: none; }
-    .swagger-ui .info { margin: 28px 0; }
-  </style>
 </head>
 <body>
   <div id="swagger-ui"></div>
   <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
   <script>
-    window.ui = SwaggerUIBundle({
-      url: "/openapi.json",
-      dom_id: "#swagger-ui",
-      deepLinking: true,
-      persistAuthorization: true,
-      displayRequestDuration: true,
-      tryItOutEnabled: true
-    });
+    window.onload = () => {
+      window.ui = SwaggerUIBundle({
+        url: "/openapi.json",
+        dom_id: "#swagger-ui",
+        persistAuthorization: true
+      });
+    };
   </script>
 </body>
 </html>`;

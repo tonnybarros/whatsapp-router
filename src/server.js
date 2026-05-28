@@ -68,9 +68,46 @@ function redactSensitive(value) {
   }));
 }
 
-function requireRouterKey(request, reply, done) {
+function hashSecret(value) {
+  return crypto.createHash("sha256").update(String(value)).digest("hex");
+}
+
+function onlyDigits(value) {
+  return String(value || "").replace(/[^\d]/g, "");
+}
+
+function newApiKey() {
+  return `whr_${crypto.randomBytes(32).toString("hex")}`;
+}
+
+function keyPreview(key) {
+  return `${key.slice(0, 8)}...${key.slice(-6)}`;
+}
+
+function maskPhone(phone) {
+  const digits = onlyDigits(phone);
+  if (digits.length <= 4) return digits;
+  return `${digits.slice(0, 4)}***${digits.slice(-4)}`;
+}
+
+async function requireWorkspaceKey(request, reply) {
   const key = request.headers["x-router-key"] || request.headers.authorization?.replace(/^Bearer\s+/i, "");
-  if (key !== config.routerApiKey) {
+  const apiKey = key ? store.findApiKeyByHash(hashSecret(key)) : null;
+  const workspace = apiKey ? store.findWorkspace(apiKey.workspace_id) : null;
+
+  if (!apiKey || !workspace || workspace.status === "blocked") {
+    return reply.code(401).send({ error: "unauthorized" });
+  }
+
+  apiKey.last_used_at = new Date().toISOString();
+  await store.upsertApiKey(apiKey);
+  request.workspace = workspace;
+  request.apiKey = apiKey;
+}
+
+function requireAdminKey(request, reply, done) {
+  const key = request.headers["x-admin-key"] || request.headers["x-router-key"] || request.headers.authorization?.replace(/^Bearer\s+/i, "");
+  if (key !== config.adminKey) {
     reply.code(401).send({ error: "unauthorized" });
     return;
   }
@@ -133,9 +170,10 @@ function attemptEntry(instance, status, extra = {}) {
   };
 }
 
-function buildMessage(body, text, status = "selected") {
+function buildMessage(body, text, workspaceId, status = "selected") {
   return {
     id: crypto.randomUUID(),
+    workspace_id: workspaceId,
     external_id: body.external_id || body.track_id || null,
     to: body.to,
     message: text,
@@ -176,6 +214,7 @@ async function restoreQueuedMessages() {
       message: message.message,
       source: message.source || "api",
       queue: true,
+      workspace_id: message.workspace_id,
       connector_id: message.requested_connector_id || undefined,
       external_id: message.external_id || undefined,
       failover: Boolean(message.failover),
@@ -241,12 +280,19 @@ function serviceHealth() {
   return {
     ok: true,
     service: "whatsapp-router",
-    version: "v2",
+    version: "v3",
     time: new Date().toISOString(),
+    multiuser: true,
+    workspaces: {
+      total: store.data.workspaces.length,
+      active: store.data.workspaces.filter((workspace) => workspace.status !== "blocked").length
+    },
+    users: {
+      total: store.data.users.length
+    },
     instances: {
       total: instances.length,
-      active: instances.filter((instance) => instance.status === "active").length,
-      items: instances
+      active: instances.filter((instance) => instance.status === "active").length
     },
     messages: {
       total: store.data.messages.length
@@ -259,7 +305,7 @@ async function waitForSelection(body, connectorId, attemptedIds, queuedAt, optio
   while (true) {
     const fallbackAllowed = shouldUseFallback(body);
     const activeIds = [...activeConnectorIds].filter((id) => !attemptedIds.has(id));
-    const selection = selectInstance(store.listInstances(), connectorId, {
+    const selection = selectInstance(store.listInstances(body.workspace_id), connectorId, {
       dryRun: Boolean(body.dry_run),
       fallbackAllowed,
       excludeIds: [...attemptedIds, ...activeIds]
@@ -279,7 +325,7 @@ async function waitForSelection(body, connectorId, attemptedIds, queuedAt, optio
       };
     }
 
-    const waitMs = nextEligibilityDelayMs(store.listInstances(), connectorId, {
+    const waitMs = nextEligibilityDelayMs(store.listInstances(body.workspace_id), connectorId, {
       dryRun: false,
       fallbackAllowed,
       excludeIds: [...attemptedIds]
@@ -315,6 +361,7 @@ async function reserveSelection(body, connectorId, attemptedIds, queuedAt, optio
 }
 
 async function deliverMessage(message, body, text, options = {}) {
+  body.workspace_id = body.workspace_id || message.workspace_id;
   const connectorId = body.connector_id || body.instance_id || null;
   const attemptedIds = new Set();
   let selection = await reserveSelection(body, connectorId, attemptedIds, options.queuedAt || Date.now(), {
@@ -433,7 +480,13 @@ async function handleSend(request, reply) {
     return reply.code(422).send({ error: "missing_fields", fields: ["to", "message"] });
   }
 
-  const message = buildMessage(body, text, body.queue ? "queued" : "selected");
+  const workspaceId = request.workspace?.id || body.workspace_id;
+  if (!workspaceId) {
+    return reply.code(401).send({ error: "workspace_required" });
+  }
+
+  body.workspace_id = workspaceId;
+  const message = buildMessage(body, text, workspaceId, body.queue ? "queued" : "selected");
   await store.addMessage(message);
 
   if (body.queue && !body.dry_run) {
@@ -444,6 +497,152 @@ async function handleSend(request, reply) {
 
   const result = await deliverMessage(message, body, text);
   return reply.code(result.httpCode).send(result.message);
+}
+
+async function createWorkspaceApiKey(workspaceId, label = "API principal") {
+  const plain = newApiKey();
+  const apiKey = {
+    id: crypto.randomUUID(),
+    workspace_id: workspaceId,
+    label,
+    key_hash: hashSecret(plain),
+    key_preview: keyPreview(plain),
+    status: "active",
+    created_at: new Date().toISOString(),
+    last_used_at: null
+  };
+  await store.upsertApiKey(apiKey);
+  return { apiKey, plain };
+}
+
+function publicApiKey(apiKey) {
+  const { key_hash: _hash, ...safe } = apiKey;
+  return safe;
+}
+
+function publicUser(user) {
+  return {
+    ...user,
+    phone_masked: maskPhone(user.phone)
+  };
+}
+
+function workspaceSummary(workspace) {
+  const messages = store.listMessages(500, workspace.id);
+  const instances = store.listInstances(workspace.id);
+  return {
+    ...workspace,
+    instances_total: instances.length,
+    instances_active: instances.filter((instance) => instance.status === "active").length,
+    messages_total: messages.length,
+    api_keys: store.listApiKeys(workspace.id).map(publicApiKey)
+  };
+}
+
+function adminOverview() {
+  return {
+    ok: true,
+    version: "v3",
+    base_url: config.publicBaseUrl,
+    n8n_verify_webhook_url: store.getSetting("verification_webhook_url") || config.verificationWebhookUrl || "",
+    users: store.listUsers().map((user) => ({
+      ...publicUser(user),
+      workspaces: store.listWorkspaces(user.id).map(workspaceSummary)
+    })),
+    workspaces: store.listWorkspaces().map(workspaceSummary),
+    messages: store.listMessages(100),
+    queue: queueStats(),
+    n8n_send_example: {
+      method: "POST",
+      url: `${config.publicBaseUrl}/api/send`,
+      headers: {
+        "X-Router-Key": "whr_chave_do_workspace",
+        "Content-Type": "application/json"
+      },
+      body: {
+        to: "5511999999999",
+        message: "Mensagem via V3",
+        source: "n8n",
+        queue: true,
+        failover: true,
+        failover_mode: "safe"
+      }
+    },
+    n8n_verify_payload: {
+      phone: "5511999999999",
+      code: "123456",
+      name: "Nome do usuario",
+      source: "whatsapp-router-v3"
+    }
+  };
+}
+
+async function createUserWorkspace({ phone, name, workspaceName }) {
+  const normalizedPhone = onlyDigits(phone);
+  const now = new Date().toISOString();
+  let user = store.findUserByPhone(normalizedPhone);
+  if (!user) {
+    user = await store.upsertUser({
+      id: crypto.randomUUID(),
+      phone: normalizedPhone,
+      name: name || normalizedPhone,
+      status: "active",
+      verified_at: now,
+      created_at: now
+    });
+  } else {
+    user.name = name || user.name;
+    user.status = "active";
+    user.verified_at = user.verified_at || now;
+    await store.upsertUser(user);
+  }
+
+  let workspace = store.listWorkspaces(user.id)[0];
+  if (!workspace) {
+    workspace = await store.upsertWorkspace({
+      id: crypto.randomUUID(),
+      name: workspaceName || user.name || normalizedPhone,
+      owner_user_id: user.id,
+      status: "active",
+      created_at: now
+    });
+    await store.upsertMember({
+      id: crypto.randomUUID(),
+      user_id: user.id,
+      workspace_id: workspace.id,
+      role: "owner",
+      created_at: now
+    });
+  }
+
+  const existingKey = store.listApiKeys(workspace.id).find((item) => item.status === "active");
+  const keyResult = existingKey ? { apiKey: existingKey, plain: null } : await createWorkspaceApiKey(workspace.id);
+
+  return { user, workspace, ...keyResult };
+}
+
+async function sendVerificationWebhook(payload) {
+  const webhookUrl = store.getSetting("verification_webhook_url") || config.verificationWebhookUrl;
+  if (!webhookUrl) return { configured: false };
+
+  const result = await fetch(webhookUrl, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  const text = await result.text();
+  let data = text;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = { raw: text };
+  }
+
+  return { configured: true, ok: result.ok, status: result.status, data: redactSensitive(data) };
 }
 
 function htmlDashboard() {
@@ -503,8 +702,7 @@ function htmlDashboard() {
       document.querySelector('#active').textContent = health.instances.active;
       document.querySelector('#messages').textContent = health.messages.total;
       document.querySelector('#version').textContent = health.version || '-';
-      const rows = health.instances.items.map((item) => '<tr><td>' + item.name + '</td><td>' + item.provider + '</td><td><span class="status ' + item.status + '">' + statusLabel(item.status) + '</span></td><td>' + item.daily_sent_count + '/' + item.daily_limit + '</td><td>' + formatDateTime(item.last_sent_at) + '</td></tr>').join('');
-      document.querySelector('#rows').innerHTML = rows || '<tr><td colspan="5">Nenhuma instância cadastrada ainda.</td></tr>';
+      document.querySelector('#rows').innerHTML = '<tr><td colspan="5">Detalhes disponíveis somente no admin autenticado.</td></tr>';
     }
     function statusLabel(status) {
       return {
@@ -571,14 +769,222 @@ app.get("/openapi.json", async () => openApiSpec());
 
 app.get("/health", async () => serviceHealth());
 
-app.register(async (api) => {
-  api.addHook("preHandler", requireRouterKey);
+app.register(async (auth) => {
+  auth.post("/request-code", async (request, reply) => {
+    const body = request.body || {};
+    const phone = onlyDigits(body.phone || body.to);
+    if (!phone) return reply.code(422).send({ error: "missing_fields", fields: ["phone"] });
 
-  api.get("/instances", async () => store.listInstances().map(publicInstance));
+    const code = String(crypto.randomInt(100000, 999999));
+    const verification = {
+      id: crypto.randomUUID(),
+      phone,
+      name: body.name || "",
+      code_hash: hashSecret(code),
+      status: "pending",
+      attempts: 0,
+      expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+      created_at: new Date().toISOString()
+    };
+
+    await store.upsertVerification(verification);
+    const delivery = await sendVerificationWebhook({
+      phone,
+      code,
+      name: body.name || "",
+      message: `Seu codigo do WhatsApp Router e ${code}. Ele expira em 10 minutos.`,
+      source: "whatsapp-router-v3"
+    });
+
+    return {
+      ok: true,
+      phone: maskPhone(phone),
+      expires_at: verification.expires_at,
+      delivery
+    };
+  });
+
+  auth.post("/verify-code", async (request, reply) => {
+    const body = request.body || {};
+    const phone = onlyDigits(body.phone || body.to);
+    const code = String(body.code || "").trim();
+    if (!phone || !code) return reply.code(422).send({ error: "missing_fields", fields: ["phone", "code"] });
+
+    const verification = store.listVerifications(phone).find((item) => item.status === "pending");
+    if (!verification) return reply.code(404).send({ error: "code_not_found" });
+    if (new Date(verification.expires_at).getTime() < Date.now()) {
+      verification.status = "expired";
+      await store.upsertVerification(verification);
+      return reply.code(410).send({ error: "code_expired" });
+    }
+
+    verification.attempts = Number(verification.attempts || 0) + 1;
+    if (verification.code_hash !== hashSecret(code)) {
+      await store.upsertVerification(verification);
+      return reply.code(401).send({ error: "invalid_code" });
+    }
+
+    verification.status = "verified";
+    verification.verified_at = new Date().toISOString();
+    await store.upsertVerification(verification);
+
+    const result = await createUserWorkspace({
+      phone,
+      name: body.name || verification.name,
+      workspaceName: body.workspace_name || body.name || verification.name
+    });
+
+    return {
+      ok: true,
+      user: publicUser(result.user),
+      workspace: workspaceSummary(result.workspace),
+      api_key: result.plain,
+      api_key_preview: result.apiKey.key_preview,
+      send_url: `${config.publicBaseUrl}/api/send`
+    };
+  });
+}, { prefix: "/api/auth" });
+
+app.register(async (admin) => {
+  admin.addHook("preHandler", requireAdminKey);
+
+  admin.get("/overview", async () => adminOverview());
+
+  admin.put("/settings", async (request) => {
+    const body = request.body || {};
+    await store.setSetting("verification_webhook_url", body.n8n_verify_webhook_url || "");
+    return adminOverview();
+  });
+
+  admin.post("/users", async (request, reply) => {
+    const body = request.body || {};
+    if (!body.phone) return reply.code(422).send({ error: "missing_fields", fields: ["phone"] });
+    const result = await createUserWorkspace({
+      phone: body.phone,
+      name: body.name,
+      workspaceName: body.workspace_name
+    });
+    return reply.code(201).send({
+      ok: true,
+      user: publicUser(result.user),
+      workspace: workspaceSummary(result.workspace),
+      api_key: result.plain,
+      api_key_preview: result.apiKey.key_preview,
+      send_url: `${config.publicBaseUrl}/api/send`
+    });
+  });
+
+  admin.post("/workspaces/:workspaceId/api-keys", async (request, reply) => {
+    const workspace = store.findWorkspace(request.params.workspaceId);
+    if (!workspace) return reply.code(404).send({ error: "workspace_not_found" });
+    const result = await createWorkspaceApiKey(workspace.id, request.body?.label || "API principal");
+    return reply.code(201).send({
+      api_key: result.plain,
+      item: publicApiKey(result.apiKey)
+    });
+  });
+
+  admin.get("/workspaces/:workspaceId/instances", async (request) => {
+    return store.listInstances(request.params.workspaceId).map(publicInstance);
+  });
+
+  admin.post("/workspaces/:workspaceId/instances", async (request, reply) => {
+    const workspace = store.findWorkspace(request.params.workspaceId);
+    if (!workspace) return reply.code(404).send({ error: "workspace_not_found" });
+
+    const body = request.body || {};
+    const existing = body.id ? store.findInstance(body.id, workspace.id) : null;
+    const required = ["name", "provider", "base_url"];
+    const missing = required.filter((field) => !body[field]);
+    if (!existing && !body.api_key) missing.push("api_key");
+    if (missing.length) return reply.code(422).send({ error: "missing_fields", fields: missing });
+
+    const instance = normalizeInstance({
+      ...existing,
+      ...body,
+      workspace_id: workspace.id,
+      api_key: body.api_key || existing?.api_key,
+      id: body.id || crypto.randomUUID()
+    });
+
+    await store.upsertInstance(instance);
+    return reply.code(201).send(publicInstance(instance));
+  });
+
+  admin.delete("/workspaces/:workspaceId/instances/:id", async (request, reply) => {
+    const deleted = await store.deleteInstance(request.params.id, request.params.workspaceId);
+    if (!deleted) return reply.code(404).send({ error: "not_found" });
+    return { deleted: true };
+  });
+
+  admin.post("/workspaces/:workspaceId/instances/:id/pause", async (request, reply) => {
+    const instance = store.findInstance(request.params.id, request.params.workspaceId);
+    if (!instance) return reply.code(404).send({ error: "not_found" });
+    instance.status = "paused";
+    instance.updated_at = new Date().toISOString();
+    await store.upsertInstance(instance);
+    return publicInstance(instance);
+  });
+
+  admin.post("/workspaces/:workspaceId/instances/:id/resume", async (request, reply) => {
+    const instance = store.findInstance(request.params.id, request.params.workspaceId);
+    if (!instance) return reply.code(404).send({ error: "not_found" });
+    instance.status = "active";
+    instance.cooldown_until = null;
+    instance.updated_at = new Date().toISOString();
+    await store.upsertInstance(instance);
+    return publicInstance(instance);
+  });
+
+  admin.post("/workspaces/:workspaceId/instances/:id/health-check", async (request, reply) => {
+    const instance = store.findInstance(request.params.id, request.params.workspaceId);
+    if (!instance) return reply.code(404).send({ error: "not_found" });
+
+    try {
+      const result = await checkProviderHealth(instance);
+      instance.health = "ok";
+      instance.last_error = null;
+      instance.cooldown_until = null;
+      if (instance.provider === "waha" && result.data?.me) {
+        instance.self_chat_id = result.data.me.id || null;
+        instance.self_jid = result.data.me.jid || null;
+        instance.self_lid = result.data.me.lid || null;
+        instance.engine = result.data.engine?.gows?.found ? "gows" : null;
+      }
+      if (instance.provider === "uazapi" && result.data?.instance?.owner) {
+        instance.self_chat_id = `${result.data.instance.owner}@c.us`;
+        instance.self_jid = result.data.status?.jid || null;
+      }
+      await store.upsertInstance(instance);
+      return { ok: true, instance: publicInstance(instance), provider_response: redactSensitive(result.data) };
+    } catch (error) {
+      instance.health = "error";
+      instance.last_error = { message: error.message, status: error.status, data: redactSensitive(error.data), at: new Date().toISOString() };
+      await store.upsertInstance(instance);
+      return reply.code(502).send({ ok: false, instance: publicInstance(instance), error: instance.last_error });
+    }
+  });
+
+  admin.get("/workspaces/:workspaceId/messages", async (request) => {
+    const limit = Math.min(Number(request.query.limit || 100), 500);
+    return store.listMessages(limit, request.params.workspaceId);
+  });
+}, { prefix: "/api/admin" });
+
+app.register(async (api) => {
+  api.addHook("preHandler", requireWorkspaceKey);
+
+  api.get("/me", async (request) => ({
+    workspace: workspaceSummary(request.workspace),
+    api_key: publicApiKey(request.apiKey),
+    send_url: `${config.publicBaseUrl}/api/send`
+  }));
+
+  api.get("/instances", async (request) => store.listInstances(request.workspace.id).map(publicInstance));
 
   api.post("/instances", async (request, reply) => {
     const body = request.body || {};
-    const existing = body.id ? store.findInstance(body.id) : null;
+    const existing = body.id ? store.findInstance(body.id, request.workspace.id) : null;
     const required = ["name", "provider", "base_url"];
     const missing = required.filter((field) => !body[field]);
     if (!existing && !body.api_key) missing.push("api_key");
@@ -589,6 +995,7 @@ app.register(async (api) => {
     const instance = normalizeInstance({
       ...existing,
       ...body,
+      workspace_id: request.workspace.id,
       api_key: body.api_key || existing?.api_key,
       id: body.id || crypto.randomUUID()
     });
@@ -598,32 +1005,32 @@ app.register(async (api) => {
   });
 
   api.delete("/instances/:id", async (request, reply) => {
-    const deleted = await store.deleteInstance(request.params.id);
+    const deleted = await store.deleteInstance(request.params.id, request.workspace.id);
     if (!deleted) return reply.code(404).send({ error: "not_found" });
     return { deleted: true };
   });
 
   api.post("/instances/:id/pause", async (request, reply) => {
-    const instance = store.findInstance(request.params.id);
+    const instance = store.findInstance(request.params.id, request.workspace.id);
     if (!instance) return reply.code(404).send({ error: "not_found" });
     instance.status = "paused";
     instance.updated_at = new Date().toISOString();
-    await store.save();
+    await store.upsertInstance(instance);
     return publicInstance(instance);
   });
 
   api.post("/instances/:id/resume", async (request, reply) => {
-    const instance = store.findInstance(request.params.id);
+    const instance = store.findInstance(request.params.id, request.workspace.id);
     if (!instance) return reply.code(404).send({ error: "not_found" });
     instance.status = "active";
     instance.cooldown_until = null;
     instance.updated_at = new Date().toISOString();
-    await store.save();
+    await store.upsertInstance(instance);
     return publicInstance(instance);
   });
 
   api.post("/instances/:id/health-check", async (request, reply) => {
-    const instance = store.findInstance(request.params.id);
+    const instance = store.findInstance(request.params.id, request.workspace.id);
     if (!instance) return reply.code(404).send({ error: "not_found" });
 
     try {
@@ -642,38 +1049,28 @@ app.register(async (api) => {
         instance.self_jid = result.data.status?.jid || null;
       }
       instance.updated_at = new Date().toISOString();
-      await store.save();
+      await store.upsertInstance(instance);
       return { ok: true, instance: publicInstance(instance), provider_response: redactSensitive(result.data) };
     } catch (error) {
       instance.health = "error";
       instance.last_error = { message: error.message, status: error.status, data: redactSensitive(error.data), at: new Date().toISOString() };
       instance.updated_at = new Date().toISOString();
-      await store.save();
+      await store.upsertInstance(instance);
       return reply.code(502).send({ ok: false, instance: publicInstance(instance), error: instance.last_error });
     }
   });
 
   api.get("/messages", async (request) => {
     const limit = Math.min(Number(request.query.limit || 100), 500);
-    return store.listMessages(limit);
+    return store.listMessages(limit, request.workspace.id);
   });
 
   api.post("/send", handleSend);
 
-  api.get("/v1/health", async () => serviceHealth());
-  api.get("/v1/connectors", async () => store.listInstances().map(publicInstance));
-  api.get("/v1/instances", async () => store.listInstances().map(publicInstance));
-  api.get("/v1/messages", async (request) => {
-    const limit = Math.min(Number(request.query.limit || 100), 500);
-    return store.listMessages(limit);
-  });
-  api.post("/v1/send", handleSend);
-  api.post("/v1/messages/send", handleSend);
-  api.post("/v1/whatsapp/send", handleSend);
-
   api.post("/webhooks/:provider", async (request) => {
     const event = {
       id: crypto.randomUUID(),
+      workspace_id: request.workspace.id,
       provider: request.params.provider,
       headers: request.headers,
       body: request.body,

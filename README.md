@@ -11,10 +11,64 @@ Providers iniciais:
 
 ## Versões
 
+- branch `v3_multiusuario`: versão 3.0 multiusuario, com workspaces, API keys por cliente, cadastro por codigo WhatsApp via n8n e dominio `multiapi.tectonny.com.br`.
 - `main` + tag `v1.0.0-basic`: versão básica estável usando JSON em arquivo.
 - branch `v2-postgres`: versão 2.0 com suporte a PostgreSQL.
 
 Na V2, o Router usa PostgreSQL quando `DATABASE_URL` está configurado. Sem `DATABASE_URL`, ele ainda roda com JSON para desenvolvimento e migração.
+
+## V3 multiusuario
+
+A V3 isola cada cliente em um `workspace`. Cada workspace possui:
+
+- seus proprios conectores;
+- seu proprio historico de mensagens;
+- uma ou mais API keys `whr_*`;
+- envio pelo endpoint unico `POST /api/send`.
+
+O admin usa `ADMIN_KEY` e fica em:
+
+```txt
+https://multiapi.tectonny.com.br/admin
+```
+
+O cadastro por WhatsApp funciona assim:
+
+1. O usuario chama `POST /api/auth/request-code` com `phone` e `name`.
+2. O Router gera um codigo de 6 digitos.
+3. O Router envia o payload para a URL do n8n configurada no admin.
+4. O n8n envia o codigo para o WhatsApp do usuario.
+5. O usuario chama `POST /api/auth/verify-code`.
+6. O Router cria usuario, workspace e API key.
+
+Exemplo de envio pelo n8n:
+
+```bash
+curl -X POST https://multiapi.tectonny.com.br/api/send \
+  -H 'Content-Type: application/json' \
+  -H 'X-Router-Key: whr_chave_do_workspace' \
+  -d '{
+    "to": "5511999999999",
+    "message": "Mensagem enviada pela V3",
+    "source": "n8n",
+    "queue": true,
+    "failover": true,
+    "failover_mode": "safe"
+  }'
+```
+
+No `.env` da V3:
+
+```env
+PORT=3027
+PUBLIC_BASE_URL=https://multiapi.tectonny.com.br
+ADMIN_KEY=troque-por-uma-chave-forte
+STORE_DRIVER=postgres
+DATABASE_URL=postgres:///whatsapp_router?host=/var/run/postgresql
+N8N_VERIFY_WEBHOOK_URL=
+```
+
+As tabelas da V3 usam prefixo `v3_router_*`, entao nao misturam dados com a V2.
 
 ## Qual instalacao escolher?
 

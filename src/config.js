@@ -2,9 +2,12 @@ import "dotenv/config";
 import crypto from "node:crypto";
 
 export const config = {
-  port: Number(process.env.PORT || 3025),
+  port: Number(process.env.PORT || 3027),
   host: process.env.HOST || "127.0.0.1",
   routerApiKey: process.env.ROUTER_API_KEY || crypto.randomBytes(32).toString("hex"),
+  adminKey: process.env.ADMIN_KEY || process.env.ROUTER_API_KEY || crypto.randomBytes(32).toString("hex"),
+  publicBaseUrl: process.env.PUBLIC_BASE_URL || "https://multiapi.tectonny.com.br",
+  verificationWebhookUrl: process.env.N8N_VERIFY_WEBHOOK_URL || "",
   storeDriver: process.env.STORE_DRIVER || "auto",
   dataFile: process.env.DATA_FILE || "./data/router.json",
   databaseUrl: process.env.DATABASE_URL || "",
