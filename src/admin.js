@@ -121,7 +121,7 @@ export function adminHtml() {
       <section class="panel">
         <div class="panel-head"><h3>Usuários</h3></div>
         <table>
-          <thead><tr><th>Nome</th><th>WhatsApp</th><th>Status</th><th>Workspaces</th></tr></thead>
+          <thead><tr><th>Nome</th><th>WhatsApp</th><th>Status</th><th>Workspaces</th><th>Ações</th></tr></thead>
           <tbody id="usersRows"></tbody>
         </table>
       </section>
@@ -188,7 +188,10 @@ export function adminHtml() {
       $('notice').textContent = text;
       $('loginNotice').textContent = text;
     }
-    function badge(value) { return '<span class="badge ' + (value || '') + '">' + statusLabel(value) + '</span>'; }
+    function html(value) {
+      return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+    }
+    function badge(value) { return '<span class="badge ' + html(value || '') + '">' + statusLabel(value) + '</span>'; }
     function statusLabel(value) {
       return { active: 'Ativo', blocked: 'Bloqueado', ok: 'OK', error: 'Erro', unknown: 'Desconhecido', sent: 'Enviado', failed: 'Erro', dry_run: 'Teste', queued: 'Na fila', processing: 'Processando', selected: 'Selecionado' }[value] || value || '-';
     }
@@ -227,11 +230,14 @@ export function adminHtml() {
     }
     function renderWorkspaces() {
       const current = selectedWorkspaceId();
-      $('workspaceSelect').innerHTML = state.overview.workspaces.map((item) => '<option value="' + item.id + '">' + item.name + '</option>').join('');
+      $('workspaceSelect').innerHTML = state.overview.workspaces.map((item) => '<option value="' + html(item.id) + '">' + html(item.name) + '</option>').join('');
       if (current) $('workspaceSelect').value = current;
     }
     function renderUsers() {
-      $('usersRows').innerHTML = state.overview.users.map((user) => '<tr><td>' + (user.name || '-') + '</td><td class="mono">' + user.phone_masked + '</td><td>' + badge(user.status) + '</td><td>' + user.workspaces.map((w) => w.name + ' <span class="muted">(' + (w.api_keys[0]?.key_preview || 'sem key') + ')</span>').join('<br>') + '</td></tr>').join('') || '<tr><td colspan="4">Nenhum usuário.</td></tr>';
+      $('usersRows').innerHTML = state.overview.users.map((user) => {
+        const workspaces = user.workspaces.map((w) => html(w.name) + ' <span class="muted">(' + html(w.api_keys[0]?.key_preview || 'sem key') + ')</span>').join('<br>');
+        return '<tr><td>' + html(user.name || '-') + '</td><td class="mono">' + html(user.phone_masked) + '</td><td>' + badge(user.status) + '</td><td>' + workspaces + '</td><td><button class="danger" onclick="deleteUser(\\'' + html(user.id) + '\\')">Excluir</button></td></tr>';
+      }).join('') || '<tr><td colspan="5">Nenhum usuário.</td></tr>';
     }
     async function loadWorkspace() {
       const workspaceId = selectedWorkspaceId();
@@ -275,6 +281,13 @@ export function adminHtml() {
       if (!confirm('Excluir conector?')) return;
       await api('/api/admin/workspaces/' + selectedWorkspaceId() + '/instances/' + id, { method: 'DELETE' });
       await loadWorkspace();
+    };
+    window.deleteUser = async (id) => {
+      const user = state.overview.users.find((item) => item.id === id);
+      const name = user?.name || user?.phone_masked || id;
+      if (!confirm('Excluir usuário ' + name + '? Isso apaga workspaces, API keys, conectores e mensagens dele.')) return;
+      await api('/api/admin/users/' + id, { method: 'DELETE' });
+      await load();
     };
     $('login').onclick = async () => {
       localStorage.setItem('routerV3AdminKey', $('adminKey').value.trim());

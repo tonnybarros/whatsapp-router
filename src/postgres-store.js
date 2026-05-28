@@ -252,6 +252,48 @@ export class PostgresStore {
     return this.upsertCollection("users", tables.users, user);
   }
 
+  async deleteUser(id) {
+    const user = this.findUser(id);
+    if (!user) return false;
+
+    const workspaceIds = this.data.members
+      .filter((member) => member.user_id === id)
+      .map((member) => member.workspace_id);
+
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      if (workspaceIds.length) {
+        await client.query(`delete from ${tables.apiKeys} where data->>'workspace_id' = any($1::text[])`, [workspaceIds]);
+        await client.query(`delete from ${tables.instances} where data->>'workspace_id' = any($1::text[])`, [workspaceIds]);
+        await client.query(`delete from ${tables.messages} where data->>'workspace_id' = any($1::text[])`, [workspaceIds]);
+        await client.query(`delete from ${tables.events} where data->>'workspace_id' = any($1::text[])`, [workspaceIds]);
+        await client.query(`delete from ${tables.members} where data->>'workspace_id' = any($1::text[])`, [workspaceIds]);
+        await client.query(`delete from ${tables.workspaces} where id = any($1::text[])`, [workspaceIds]);
+      }
+      await client.query(`delete from ${tables.members} where data->>'user_id' = $1`, [id]);
+      await client.query(`delete from ${tables.verifications} where data->>'phone' = $1`, [user.phone]);
+      await client.query(`delete from ${tables.users} where id = $1`, [id]);
+      await client.query("commit");
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    } finally {
+      client.release();
+    }
+
+    this.data.apiKeys = this.data.apiKeys.filter((item) => !workspaceIds.includes(item.workspace_id));
+    this.data.instances = this.data.instances.filter((item) => !workspaceIds.includes(item.workspace_id));
+    this.data.messages = this.data.messages.filter((item) => !workspaceIds.includes(item.workspace_id));
+    this.data.events = this.data.events.filter((item) => !workspaceIds.includes(item.workspace_id));
+    this.data.members = this.data.members.filter((item) => item.user_id !== id && !workspaceIds.includes(item.workspace_id));
+    this.data.workspaces = this.data.workspaces.filter((item) => !workspaceIds.includes(item.id));
+    this.data.verifications = this.data.verifications.filter((item) => item.phone !== user.phone);
+    this.data.users = this.data.users.filter((item) => item.id !== id);
+
+    return true;
+  }
+
   listWorkspaces(userId = null) {
     if (!userId) return [...this.data.workspaces].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
     const ids = new Set(this.data.members.filter((member) => member.user_id === userId).map((member) => member.workspace_id));

@@ -892,6 +892,12 @@ app.register(async (admin) => {
     });
   });
 
+  admin.delete("/users/:id", async (request, reply) => {
+    const deleted = await store.deleteUser(request.params.id);
+    if (!deleted) return reply.code(404).send({ error: "user_not_found" });
+    return { deleted: true };
+  });
+
   admin.post("/workspaces/:workspaceId/api-keys", async (request, reply) => {
     const workspace = store.findWorkspace(request.params.workspaceId);
     if (!workspace) return reply.code(404).send({ error: "workspace_not_found" });
