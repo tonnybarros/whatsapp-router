@@ -13,8 +13,11 @@ import { checkProviderHealth, sendViaProvider } from "./providers/index.js";
 const app = Fastify({ logger: true });
 const store = createStore(config);
 const queuedJobs = [];
+const activeConnectorIds = new Set();
 let queueRunning = false;
-let deliveryChain = Promise.resolve();
+let selectionChain = Promise.resolve();
+let scheduledQueueJobs = 0;
+let activeQueueJobs = 0;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -22,14 +25,27 @@ function sleep(ms) {
 
 function queueStats() {
   return {
-    pending: queuedJobs.length,
-    running: queueRunning
+    pending: queuedJobs.length + scheduledQueueJobs,
+    running: queueRunning || activeQueueJobs > 0
   };
 }
 
-function runDelivery(task) {
-  const next = deliveryChain.then(task, task);
-  deliveryChain = next.catch(() => {});
+function queueDelay(ms) {
+  return Math.min(Math.max(ms || config.queuePollMs, config.queuePollMs), 30000);
+}
+
+function scheduleQueuedJob(job, delayMs) {
+  scheduledQueueJobs += 1;
+  setTimeout(() => {
+    scheduledQueueJobs = Math.max(0, scheduledQueueJobs - 1);
+    queuedJobs.push(job);
+    drainQueue().catch((error) => app.log.error(error));
+  }, queueDelay(delayMs));
+}
+
+function runSelection(task) {
+  const next = selectionChain.then(task, task);
+  selectionChain = next.catch(() => {});
   return next;
 }
 
@@ -181,13 +197,35 @@ async function drainQueue() {
 
       message.status = "processing";
       await store.updateMessage(message.id, message);
-      await runDelivery(() => deliverMessage(message, job.body, job.text, {
-        waitForCapacity: true,
-        queuedAt: job.queuedAt
-      }));
+      processQueuedJob(job, message).catch(async (error) => {
+        app.log.error(error);
+        message.status = "failed";
+        message.error = { message: error.message, at: new Date().toISOString() };
+        await store.updateMessage(message.id, message);
+      });
     }
   } finally {
     queueRunning = false;
+  }
+}
+
+async function processQueuedJob(job, message) {
+  activeQueueJobs += 1;
+  try {
+    const result = await deliverMessage(message, job.body, job.text, {
+      waitForCapacity: true,
+      deferWhenWaiting: true,
+      queuedAt: job.queuedAt
+    });
+
+    if (result.deferred) {
+      message.status = "queued";
+      message.error = null;
+      await store.updateMessage(message.id, message);
+      scheduleQueuedJob(job, result.delayMs);
+    }
+  } finally {
+    activeQueueJobs = Math.max(0, activeQueueJobs - 1);
   }
 }
 
@@ -217,13 +255,14 @@ function serviceHealth() {
   };
 }
 
-async function waitForSelection(body, connectorId, attemptedIds, queuedAt) {
+async function waitForSelection(body, connectorId, attemptedIds, queuedAt, options = {}) {
   while (true) {
     const fallbackAllowed = shouldUseFallback(body);
+    const activeIds = [...activeConnectorIds].filter((id) => !attemptedIds.has(id));
     const selection = selectInstance(store.listInstances(), connectorId, {
       dryRun: Boolean(body.dry_run),
       fallbackAllowed,
-      excludeIds: [...attemptedIds]
+      excludeIds: [...attemptedIds, ...activeIds]
     });
 
     if (selection.instance || !body.queue) return selection;
@@ -246,17 +285,52 @@ async function waitForSelection(body, connectorId, attemptedIds, queuedAt) {
       excludeIds: [...attemptedIds]
     });
 
+    if (options.deferWhenWaiting) {
+      const delayMs = waitMs === null
+        ? (activeIds.length ? config.queuePollMs : null)
+        : waitMs;
+
+      if (delayMs !== null) {
+        return {
+          ...selection,
+          deferred: true,
+          delayMs: queueDelay(delayMs)
+        };
+      }
+    }
+
     if (waitMs === null) return selection;
-    await sleep(Math.min(Math.max(waitMs, config.queuePollMs), 30000));
+    await sleep(queueDelay(waitMs));
   }
+}
+
+async function reserveSelection(body, connectorId, attemptedIds, queuedAt, options = {}) {
+  return runSelection(async () => {
+    const selection = await waitForSelection(body, connectorId, attemptedIds, queuedAt, options);
+    if (selection.instance && !body.dry_run) {
+      activeConnectorIds.add(selection.instance.id);
+    }
+    return selection;
+  });
 }
 
 async function deliverMessage(message, body, text, options = {}) {
   const connectorId = body.connector_id || body.instance_id || null;
   const attemptedIds = new Set();
-  let selection = await waitForSelection(body, connectorId, attemptedIds, options.queuedAt || Date.now());
+  let selection = await reserveSelection(body, connectorId, attemptedIds, options.queuedAt || Date.now(), {
+    deferWhenWaiting: Boolean(options.deferWhenWaiting)
+  });
 
   if (!selection.instance) {
+    if (selection.deferred) {
+      return {
+        message,
+        httpCode: 202,
+        deferred: true,
+        delayMs: selection.delayMs
+      };
+    }
+
     message.status = "failed";
     message.error = {
       message: selection.rejected?.[0]?.reason || "Nenhuma instancia elegivel",
@@ -318,13 +392,22 @@ async function deliverMessage(message, body, text, options = {}) {
       await store.updateMessage(message.id, message);
 
       if (isFailoverRetryable(error, body)) {
-        selection = selectInstance(store.listInstances(), connectorId, {
-          dryRun: false,
-          fallbackAllowed: true,
-          excludeIds: [...attemptedIds]
+        selection = await reserveSelection({
+          ...body,
+          fallback_allowed: true
+        }, connectorId, attemptedIds, options.queuedAt || Date.now(), {
+          deferWhenWaiting: Boolean(options.deferWhenWaiting)
         });
 
         if (selection.instance) continue;
+        if (selection.deferred) {
+          return {
+            message,
+            httpCode: 202,
+            deferred: true,
+            delayMs: selection.delayMs
+          };
+        }
 
         message.error = {
           ...failure,
@@ -335,6 +418,8 @@ async function deliverMessage(message, body, text, options = {}) {
       }
 
       return { message, httpCode: error.status && error.status < 500 ? error.status : 502 };
+    } finally {
+      activeConnectorIds.delete(instance.id);
     }
   }
 
@@ -357,7 +442,7 @@ async function handleSend(request, reply) {
     return reply.code(202).send(queuedResponse);
   }
 
-  const result = await runDelivery(() => deliverMessage(message, body, text));
+  const result = await deliverMessage(message, body, text);
   return reply.code(result.httpCode).send(result.message);
 }
 

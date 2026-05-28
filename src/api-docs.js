@@ -31,7 +31,7 @@ export function apiDocsHtml() {
         <h1>WhatsApp Router API</h1>
         <p>API para n8n, sistemas internos e qualquer aplicação que precise enviar WhatsApp por conectores cadastrados.</p>
       </div>
-      <span class="badge">v1</span>
+      <span class="badge">v2</span>
     </header>
 
     <section>

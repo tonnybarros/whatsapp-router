@@ -182,6 +182,8 @@ export function adminHtml() {
             <div class="row-actions">
               <select id="messageFilter" style="width: 190px;">
                 <option value="all">Todos os status</option>
+                <option value="queued">Na fila</option>
+                <option value="processing">Processando</option>
                 <option value="sent">Enviado</option>
                 <option value="failed">Erro</option>
                 <option value="dry_run">Teste</option>

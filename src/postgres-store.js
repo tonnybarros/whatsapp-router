@@ -1,6 +1,7 @@
 import pg from "pg";
 
 const { Pool } = pg;
+const RETENTION_LIMIT = 5000;
 
 const initialData = {
   instances: [],
@@ -35,8 +36,22 @@ export class PostgresStore {
 
     const [instances, messages, events] = await Promise.all([
       this.pool.query("select data from router_instances order by coalesce(data->>'created_at', '') asc"),
-      this.pool.query("select data from router_messages order by coalesce(data->>'created_at', '') asc"),
-      this.pool.query("select data from router_events order by coalesce(data->>'created_at', '') asc")
+      this.pool.query(`
+        select data from (
+          select data from router_messages
+          order by coalesce(data->>'created_at', '') desc
+          limit $1
+        ) recent
+        order by coalesce(data->>'created_at', '') asc
+      `, [RETENTION_LIMIT]),
+      this.pool.query(`
+        select data from (
+          select data from router_events
+          order by coalesce(data->>'created_at', '') desc
+          limit $1
+        ) recent
+        order by coalesce(data->>'created_at', '') asc
+      `, [RETENTION_LIMIT])
     ]);
 
     this.data = {
@@ -83,12 +98,6 @@ export class PostgresStore {
         await client.query("begin");
         for (const instance of this.data.instances) {
           await upsertJson(client, "router_instances", instance.id, instance);
-        }
-        for (const message of this.data.messages) {
-          await upsertJson(client, "router_messages", message.id, message);
-        }
-        for (const event of this.data.events) {
-          await upsertJson(client, "router_events", event.id, event);
         }
         await client.query("commit");
       } catch (error) {
@@ -138,10 +147,11 @@ export class PostgresStore {
 
   async addMessage(message) {
     this.data.messages.push(message);
-    if (this.data.messages.length > 5000) {
-      this.data.messages = this.data.messages.slice(-5000);
+    if (this.data.messages.length > RETENTION_LIMIT) {
+      this.data.messages = this.data.messages.slice(-RETENTION_LIMIT);
     }
     await upsertJson(this.pool, "router_messages", message.id, message);
+    await deleteOldRows(this.pool, "router_messages", RETENTION_LIMIT);
     return message;
   }
 
@@ -155,12 +165,25 @@ export class PostgresStore {
 
   async addEvent(event) {
     this.data.events.push(event);
-    if (this.data.events.length > 5000) {
-      this.data.events = this.data.events.slice(-5000);
+    if (this.data.events.length > RETENTION_LIMIT) {
+      this.data.events = this.data.events.slice(-RETENTION_LIMIT);
     }
     await upsertJson(this.pool, "router_events", event.id, event);
+    await deleteOldRows(this.pool, "router_events", RETENTION_LIMIT);
     return event;
   }
+}
+
+async function deleteOldRows(clientOrPool, table, limit) {
+  await clientOrPool.query(
+    `delete from ${table}
+     where id in (
+       select id from ${table}
+       order by coalesce(data->>'created_at', '') desc
+       offset $1
+     )`,
+    [limit]
+  );
 }
 
 async function upsertJson(clientOrPool, table, id, payload) {
