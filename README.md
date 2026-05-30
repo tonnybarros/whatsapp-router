@@ -617,6 +617,7 @@ curl -X POST https://api.tectonny.com.br/api/v1/messages/send \
     "dry_run": false,
     "failover": true,
     "connector_id": "opcional-id-do-conector",
+    "exclude_connector_ids": ["id-do-conector-que-nao-deve-enviar"],
     "fallback_allowed": true,
     "external_id": "pedido-123"
   }'
@@ -643,6 +644,7 @@ Payload recomendado para automacoes:
   "failover": true,
   "fallback_allowed": true,
   "failover_mode": "safe",
+  "exclude_connector_ids": ["id-do-conector-que-nao-deve-enviar"],
   "external_id": "pedido-123"
 }
 ```
@@ -657,6 +659,7 @@ Payload recomendado para automacoes:
 | `dry_run` | boolean | Nao | Quando `true`, testa selecao/roteamento sem enviar mensagem real. |
 | `connector_id` | string | Nao | Forca uma API/conector especifico. Se vazio, o Router escolhe automaticamente. |
 | `instance_id` | string | Nao | Alias legado de `connector_id`. |
+| `exclude_connector_ids` | array/string | Nao | Remove um ou mais conectores da rotacao desta mensagem. Aceita array ou texto separado por virgula. |
 | `fallback_allowed` | boolean | Nao | Se `connector_id` estiver inelegivel, permite usar outro conector disponivel. |
 | `failover` | boolean | Nao | Se uma tentativa falhar de forma segura, tenta outro conector elegivel. |
 | `failover_mode` | string | Nao | `safe` evita duplicidade. `aggressive` tambem retenta 5xx, mas pode duplicar se o provider enviou e respondeu erro. |
@@ -705,6 +708,7 @@ Exemplo de resposta quando usa fila:
 | `priority` | Prioridade informada ou `normal`. |
 | `status` | Estado atual da mensagem. Veja a tabela de status abaixo. |
 | `requested_connector_id` | Conector solicitado no payload, quando informado. |
+| `excluded_connector_ids` | Conectores removidos da rotacao pelo payload, quando informado. |
 | `selected_instance_id` | Conector realmente escolhido para a tentativa atual/final. |
 | `provider` | API usada na tentativa final: `uazapi`, `waha`, `evolution_go`, `evolution_api` ou `custom`. |
 | `dry_run` | Indica que foi apenas teste sem envio real. |
@@ -751,5 +755,6 @@ curl -X POST https://api.tectonny.com.br/api/v1/messages/send \
 ## Failover e fallback
 
 - `fallback_allowed=true`: se você enviar `connector_id` e esse conector estiver pausado, em limite ou inelegível, o router pode usar outro conector elegível.
+- `exclude_connector_ids`: usa a rotacao normal, mas ignora os conectores informados. Exemplo: `["id-do-waha"]`.
 - `failover=true`: se o conector escolhido falhar sem resposta HTTP do provider, o router tenta o próximo conector elegível.
 - `failover_mode=aggressive`: também retenta erro HTTP 5xx. Use com cuidado, porque algumas APIs podem responder 500 mesmo depois de enviar a mensagem.

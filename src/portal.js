@@ -164,7 +164,7 @@ export function portalHtml() {
               <label>Instância <input id="instance"></label>
               <label>Auth header <input id="auth_header" placeholder="padrão da API"></label>
               <label>Limite/dia <input id="daily_limit" type="number" value="50"></label>
-              <label>Intervalo mínimo <input id="min_seconds_between_messages" type="number" value="60"></label>
+              <label>Intervalo mínimo (segundos) <input id="min_seconds_between_messages" type="number" value="60"></label>
               <label>Send path <input id="send_path" placeholder="padrão da API"></label>
               <label>Health path <input id="health_path" placeholder="padrão da API"></label>
               <label>Headers JSON <textarea id="custom_headers" placeholder='{"X-Origem":"router"}'></textarea></label>
@@ -263,7 +263,7 @@ export function portalHtml() {
       document.querySelectorAll('.nav button').forEach((button) => button.classList.toggle('active', button.dataset.page === state.page));
     }
     function renderInstances() {
-      $('instancesRows').innerHTML = state.instances.map((item) => '<tr><td><strong>' + item.name + '</strong><br><span class="muted mono">' + item.id.slice(0, 8) + '</span></td><td>' + item.provider + '</td><td>' + badge(item.status) + '</td><td>' + badge(item.health) + '</td><td>' + item.daily_sent_count + '/' + item.daily_limit + '</td><td class="actions"><button onclick="editInstance(\\'' + item.id + '\\')">Editar</button><button onclick="healthInstance(\\'' + item.id + '\\')">Health</button><button onclick="toggleInstance(\\'' + item.id + '\\', \\'' + item.status + '\\')">' + (item.status === 'active' ? 'Pausar' : 'Ativar') + '</button><button class="danger" onclick="deleteInstance(\\'' + item.id + '\\')">Excluir</button></td></tr>').join('') || '<tr><td colspan="6">Nenhum conector cadastrado.</td></tr>';
+      $('instancesRows').innerHTML = state.instances.map((item) => '<tr><td><strong>' + item.name + '</strong><br><span class="muted mono">' + item.id.slice(0, 8) + '</span></td><td>' + item.provider + '</td><td>' + badge(item.status) + '</td><td>' + badge(item.health) + '</td><td>' + item.daily_sent_count + '/' + item.daily_limit + '</td><td class="actions"><button onclick="editInstance(\\'' + item.id + '\\')">Editar</button><button onclick="copyConnectorId(\\'' + item.id + '\\')">Copiar ID</button><button onclick="healthInstance(\\'' + item.id + '\\')">Health</button><button onclick="toggleInstance(\\'' + item.id + '\\', \\'' + item.status + '\\')">' + (item.status === 'active' ? 'Pausar' : 'Ativar') + '</button><button class="danger" onclick="deleteInstance(\\'' + item.id + '\\')">Excluir</button></td></tr>').join('') || '<tr><td colspan="6">Nenhum conector cadastrado.</td></tr>';
     }
     function renderMessages() {
       const filter = $('messageFilter').value;
@@ -314,6 +314,14 @@ export function portalHtml() {
       if (!confirm('Excluir conector?')) return;
       await api('/api/instances/' + id, { method: 'DELETE' });
       await load();
+    };
+    window.copyConnectorId = async (id) => {
+      try {
+        await navigator.clipboard.writeText(id);
+        setNotice('ID do conector copiado.');
+      } catch {
+        setNotice('ID do conector: ' + id);
+      }
     };
     $('login').onclick = async () => {
       localStorage.setItem('routerV3WorkspaceKey', $('portalKey').value.trim());

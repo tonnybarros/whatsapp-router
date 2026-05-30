@@ -42,6 +42,13 @@ export function openApiSpec() {
             queue: { type: "boolean", example: true },
             dry_run: { type: "boolean", example: false },
             connector_id: { type: "string" },
+            exclude_connector_ids: {
+              oneOf: [
+                { type: "array", items: { type: "string" } },
+                { type: "string" }
+              ],
+              example: ["id-do-conector-que-nao-deve-enviar"]
+            },
             failover: { type: "boolean", example: true },
             failover_mode: { type: "string", enum: ["safe", "aggressive"], example: "safe" },
             external_id: { type: "string", example: "pedido-123" }

@@ -151,6 +151,7 @@ export function apiDocsHtml() {
           <tr><td><code>source</code></td><td><code>string</code></td><td>Não</td><td>Origem exibida no painel.</td></tr>
           <tr><td><code>queue</code></td><td><code>boolean</code></td><td>Não</td><td>Quando <code>true</code>, coloca na fila e responde <code>202</code>.</td></tr>
           <tr><td><code>connector_id</code></td><td><code>string</code></td><td>Não</td><td>Força um conector específico dentro do workspace.</td></tr>
+          <tr><td><code>exclude_connector_ids</code></td><td><code>array/string</code></td><td>Não</td><td>Remove conectores da rotação. Aceita array ou texto separado por vírgula.</td></tr>
           <tr><td><code>failover</code></td><td><code>boolean</code></td><td>Não</td><td>Tenta outro conector elegível em falhas seguras.</td></tr>
           <tr><td><code>failover_mode</code></td><td><code>string</code></td><td>Não</td><td><code>safe</code> ou <code>aggressive</code>.</td></tr>
           <tr><td><code>external_id</code></td><td><code>string</code></td><td>Não</td><td>ID externo para rastrear execução/pedido.</td></tr>

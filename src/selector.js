@@ -108,6 +108,8 @@ function selectCandidate(instances, explain) {
 export function selectInstance(instances, preferredId = null, options = {}) {
   const explain = options.dryRun ? explainDryRunEligibility : explainEligibility;
   const excludedIds = new Set(options.excludeIds || []);
+  const excludedReasons = options.excludeReasons || {};
+  const excludedReason = (id) => excludedReasons[id] || "tentativa anterior falhou";
   const availableInstances = instances.filter((instance) => !excludedIds.has(instance.id));
 
   if (preferredId) {
@@ -124,7 +126,7 @@ export function selectInstance(instances, preferredId = null, options = {}) {
         : { instance: null, rejected };
     }
 
-    const preferredReason = excludedIds.has(preferred.id) ? "tentativa anterior falhou" : explain(preferred);
+    const preferredReason = excludedIds.has(preferred.id) ? excludedReason(preferred.id) : explain(preferred);
     if (!preferredReason) {
       return { instance: preferred, rejected: [] };
     }
@@ -150,7 +152,7 @@ export function selectInstance(instances, preferredId = null, options = {}) {
       rejected: instances.map((instance) => ({
         id: instance.id,
         name: instance.name,
-        reason: excludedIds.has(instance.id) ? "tentativa anterior falhou" : explain(instance)
+        reason: excludedIds.has(instance.id) ? excludedReason(instance.id) : explain(instance)
       }))
     };
   }
@@ -166,7 +168,7 @@ export function selectInstance(instances, preferredId = null, options = {}) {
     rejected: instances.map((instance) => ({
       id: instance.id,
       name: instance.name,
-      reason: excludedIds.has(instance.id) ? "tentativa anterior falhou" : explain(instance)
+      reason: excludedIds.has(instance.id) ? excludedReason(instance.id) : explain(instance)
     }))
   };
 }

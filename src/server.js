@@ -120,6 +120,20 @@ function shouldUseFallback(body) {
   return Boolean(body.fallback_allowed || body.failover);
 }
 
+function excludedConnectorIds(body) {
+  const value = body.exclude_connector_ids ?? body.exclude_instance_ids ?? body.exclude_connector_id ?? body.exclude_instance_id ?? [];
+  const values = Array.isArray(value) ? value : String(value).split(",");
+  return values.map((item) => String(item).trim()).filter(Boolean);
+}
+
+function exclusionReasons(excludedIds, attemptedIds = [], activeIds = []) {
+  return {
+    ...Object.fromEntries(excludedIds.map((id) => [id, "conector excluido pelo payload"])),
+    ...Object.fromEntries(activeIds.map((id) => [id, "conector em uso"])),
+    ...Object.fromEntries([...attemptedIds].map((id) => [id, "tentativa anterior falhou"]))
+  };
+}
+
 function providerError(error) {
   return {
     message: error.message,
@@ -189,6 +203,7 @@ function buildMessage(body, text, workspaceId, status = "selected") {
     priority: body.priority || "normal",
     status,
     requested_connector_id: body.connector_id || body.instance_id || null,
+    excluded_connector_ids: excludedConnectorIds(body),
     selected_instance_id: null,
     provider: null,
     dry_run: Boolean(body.dry_run),
@@ -312,11 +327,13 @@ function serviceHealth() {
 async function waitForSelection(body, connectorId, attemptedIds, queuedAt, options = {}) {
   while (true) {
     const fallbackAllowed = shouldUseFallback(body);
+    const excludedIds = excludedConnectorIds(body);
     const activeIds = [...activeConnectorIds].filter((id) => !attemptedIds.has(id));
     const selection = selectInstance(store.listInstances(body.workspace_id), connectorId, {
       dryRun: Boolean(body.dry_run),
       fallbackAllowed,
-      excludeIds: [...attemptedIds, ...activeIds]
+      excludeIds: [...excludedIds, ...attemptedIds, ...activeIds],
+      excludeReasons: exclusionReasons(excludedIds, attemptedIds, activeIds)
     });
 
     if (selection.instance || !body.queue) return selection;
@@ -336,7 +353,7 @@ async function waitForSelection(body, connectorId, attemptedIds, queuedAt, optio
     const waitMs = nextEligibilityDelayMs(store.listInstances(body.workspace_id), connectorId, {
       dryRun: false,
       fallbackAllowed,
-      excludeIds: [...attemptedIds]
+      excludeIds: [...excludedIds, ...attemptedIds]
     });
 
     if (options.deferWhenWaiting) {

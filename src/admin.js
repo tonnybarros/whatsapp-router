@@ -195,7 +195,7 @@ export function adminHtml() {
             <label>Instância <input id="instance"></label>
             <label>Auth header <input id="auth_header" placeholder="padrão da API"></label>
             <label>Limite/dia <input id="daily_limit" type="number" value="50"></label>
-            <label>Intervalo mínimo <input id="min_seconds_between_messages" type="number" value="60"></label>
+            <label>Intervalo mínimo (segundos) <input id="min_seconds_between_messages" type="number" value="60"></label>
             <label>Send path <input id="send_path" placeholder="padrão da API"></label>
             <label>Health path <input id="health_path" placeholder="padrão da API"></label>
             <label>Headers JSON <textarea id="custom_headers" placeholder='{"X-Origem":"router"}'></textarea></label>
@@ -308,7 +308,7 @@ export function adminHtml() {
       renderMessages();
     }
     function renderInstances() {
-      $('instancesRows').innerHTML = state.instances.map((item) => '<tr><td><strong>' + item.name + '</strong><br><span class="muted mono">' + item.id.slice(0, 8) + '</span></td><td>' + item.provider + '</td><td>' + badge(item.status) + '</td><td>' + badge(item.health) + '</td><td>' + item.daily_sent_count + '/' + item.daily_limit + '</td><td class="actions"><button onclick="editInstance(\\'' + item.id + '\\')">Editar</button><button onclick="healthInstance(\\'' + item.id + '\\')">Health</button><button onclick="toggleInstance(\\'' + item.id + '\\', \\'' + item.status + '\\')">' + (item.status === 'active' ? 'Pausar' : 'Ativar') + '</button><button class="danger" onclick="deleteInstance(\\'' + item.id + '\\')">Excluir</button></td></tr>').join('') || '<tr><td colspan="6">Nenhum conector neste workspace.</td></tr>';
+      $('instancesRows').innerHTML = state.instances.map((item) => '<tr><td><strong>' + item.name + '</strong><br><span class="muted mono">' + item.id.slice(0, 8) + '</span></td><td>' + item.provider + '</td><td>' + badge(item.status) + '</td><td>' + badge(item.health) + '</td><td>' + item.daily_sent_count + '/' + item.daily_limit + '</td><td class="actions"><button onclick="editInstance(\\'' + item.id + '\\')">Editar</button><button onclick="copyConnectorId(\\'' + item.id + '\\')">Copiar ID</button><button onclick="healthInstance(\\'' + item.id + '\\')">Health</button><button onclick="toggleInstance(\\'' + item.id + '\\', \\'' + item.status + '\\')">' + (item.status === 'active' ? 'Pausar' : 'Ativar') + '</button><button class="danger" onclick="deleteInstance(\\'' + item.id + '\\')">Excluir</button></td></tr>').join('') || '<tr><td colspan="6">Nenhum conector neste workspace.</td></tr>';
     }
     function renderMessages() {
       $('messagesRows').innerHTML = state.messages.map((item) => '<tr><td>' + formatDate(item.created_at) + '</td><td class="mono">' + item.to + '</td><td>' + badge(item.status) + '</td><td>' + (item.source || '-') + '</td><td>' + (item.attempts?.at(-1)?.instance_name || '-') + '</td><td class="muted">' + messageError(item) + '</td></tr>').join('') || '<tr><td colspan="6">Nenhuma mensagem.</td></tr>';
@@ -355,6 +355,14 @@ export function adminHtml() {
       if (!confirm('Excluir conector?')) return;
       await api('/api/admin/workspaces/' + selectedWorkspaceId() + '/instances/' + id, { method: 'DELETE' });
       await loadWorkspace();
+    };
+    window.copyConnectorId = async (id) => {
+      try {
+        await navigator.clipboard.writeText(id);
+        setNotice('ID do conector copiado.');
+      } catch {
+        setNotice('ID do conector: ' + id);
+      }
     };
     window.deleteUser = async (id) => {
       const user = state.overview.users.find((item) => item.id === id);
