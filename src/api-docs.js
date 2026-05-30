@@ -143,9 +143,10 @@ pm2 restart whatsapp-router --update-env</pre>
   "failover_mode": "safe",
   "dry_run": false,
   "connector_id": "opcional-id-do-conector",
+  "exclude_connector_ids": ["id-do-conector-que-nao-deve-enviar"],
   "external_id": "pedido-123"
 }</pre>
-      <p><code>message</code> também pode ser enviado como <code>text</code>. Se <code>connector_id</code> não for informado, o router escolhe automaticamente a instância elegível mais antiga.</p>
+      <p><code>message</code> também pode ser enviado como <code>text</code>. Se <code>connector_id</code> não for informado, o router escolhe automaticamente a instância elegível mais antiga. Use <code>exclude_connector_ids</code> para remover um ou mais conectores da rotação desta mensagem.</p>
     </section>
 
     <section>
@@ -161,6 +162,7 @@ pm2 restart whatsapp-router --update-env</pre>
           <tr><td><code>dry_run</code></td><td><code>boolean</code></td><td>Não</td><td>Testa seleção/roteamento sem envio real.</td></tr>
           <tr><td><code>connector_id</code></td><td><code>string</code></td><td>Não</td><td>Força um conector específico. Se vazio, o Router escolhe automaticamente.</td></tr>
           <tr><td><code>instance_id</code></td><td><code>string</code></td><td>Não</td><td>Alias legado de <code>connector_id</code>.</td></tr>
+          <tr><td><code>exclude_connector_ids</code></td><td><code>array/string</code></td><td>Não</td><td>Remove conectores da rotação. Aceita array ou texto separado por vírgula.</td></tr>
           <tr><td><code>fallback_allowed</code></td><td><code>boolean</code></td><td>Não</td><td>Permite trocar de conector se o preferido estiver inelegível.</td></tr>
           <tr><td><code>failover</code></td><td><code>boolean</code></td><td>Não</td><td>Permite tentar outro conector quando uma tentativa falha de forma segura.</td></tr>
           <tr><td><code>failover_mode</code></td><td><code>string</code></td><td>Não</td><td><code>safe</code> evita duplicidade. <code>aggressive</code> também retenta 5xx, com risco de duplicar.</td></tr>

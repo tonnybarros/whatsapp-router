@@ -239,7 +239,7 @@ export function adminHtml() {
                 <label>Instância <input id="instance" placeholder="minha-instancia"></label>
                 <label class="full">Auth header <input id="auth_header" placeholder="padrão da API"></label>
                 <label>Limite/dia <input id="daily_limit" type="number" min="1" value="50"></label>
-                <label>Intervalo mínimo <input id="min_seconds_between_messages" type="number" min="0" value="60"></label>
+                <label>Intervalo mínimo (segundos) <input id="min_seconds_between_messages" type="number" min="0" value="60"></label>
                 <label class="full">Send path <input id="send_path" placeholder="padrão da API"></label>
                 <label class="full">Health path <input id="health_path" placeholder="padrão da API"></label>
                 <div class="full advanced-fields"></div>
@@ -437,7 +437,7 @@ export function adminHtml() {
         '<td>' + badge(item.health) + '</td>' +
         '<td>' + item.daily_sent_count + '/' + item.daily_limit + '</td>' +
         '<td>' + formatDateTime(item.last_sent_at) + '</td>' +
-        '<td><div class="summary-row"><button onclick="openConnector(\\'' + item.id + '\\')">Abrir</button><button onclick="quickHealth(\\'' + item.id + '\\')">Health</button></div></td></tr>'
+        '<td><div class="summary-row"><button onclick="openConnector(\\'' + item.id + '\\')">Abrir</button><button onclick="copyConnectorId(\\'' + item.id + '\\')">Copiar ID</button><button onclick="quickHealth(\\'' + item.id + '\\')">Health</button></div></td></tr>'
       )).join('') || '<tr><td colspan="7" class="muted">Nenhum conector cadastrado.</td></tr>';
     }
 
@@ -539,6 +539,8 @@ export function adminHtml() {
       if (text === 'base_url ausente') return 'URL da API ausente';
       if (text === 'instancia nao encontrada') return 'instância não encontrada';
       if (text === 'tentativa anterior falhou') return 'tentativa anterior falhou';
+      if (text === 'conector excluido pelo payload') return 'conector excluído pelo envio';
+      if (text === 'conector em uso') return 'conector em uso';
       return text;
     }
 
@@ -673,6 +675,15 @@ export function adminHtml() {
       } catch (error) {
         await loadAll().catch(() => {});
         setNotice(error.message, 'err');
+      }
+    };
+
+    window.copyConnectorId = async (id) => {
+      try {
+        await navigator.clipboard.writeText(id);
+        setNotice('ID do conector copiado.', 'ok');
+      } catch {
+        setNotice('ID do conector: ' + id, '');
       }
     };
 

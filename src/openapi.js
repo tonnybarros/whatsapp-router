@@ -103,6 +103,14 @@ Documentação completa: [abrir /docs](/docs).`
               example: "b5bf0c76-25a6-4b52-8215-1eecaab2d520",
               description: "Opcional. Força o envio por um conector específico."
             },
+            exclude_connector_ids: {
+              oneOf: [
+                { type: "array", items: { type: "string" } },
+                { type: "string" }
+              ],
+              example: ["b5bf0c76-25a6-4b52-8215-1eecaab2d520"],
+              description: "Opcional. Remove um ou mais conectores da rotação desta mensagem. String pode ser separada por vírgula."
+            },
             fallback_allowed: {
               type: "boolean",
               example: false,
@@ -141,6 +149,7 @@ Documentação completa: [abrir /docs](/docs).`
             status: { type: "string", example: "dry_run", description: "Status atual: queued, processing, selected, sent, dry_run ou failed." },
             selected_instance_id: { type: "string", nullable: true, description: "Conector escolhido para a tentativa atual/final." },
             requested_connector_id: { type: "string", nullable: true, description: "Conector solicitado no payload, quando informado." },
+            excluded_connector_ids: { type: "array", items: { type: "string" }, description: "Conectores removidos da rotação pelo payload." },
             provider: { type: "string", nullable: true, description: "Provider usado na tentativa final." },
             dry_run: { type: "boolean", description: "Indica teste sem envio real." },
             queued: { type: "boolean", description: "Indica que a mensagem entrou pela fila." },
