@@ -1,9 +1,14 @@
 import { config } from "./config.js";
 
-function startOfToday() {
-  const date = new Date();
-  date.setHours(0, 0, 0, 0);
-  return date.toISOString();
+function currentDateKey() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: config.timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
 }
 
 function secondsSince(isoDate) {
@@ -37,7 +42,7 @@ export function normalizeInstance(input) {
     health: input.health || "unknown",
     daily_limit: Number(input.daily_limit || config.defaultDailyLimit),
     daily_sent_count: Number(input.daily_sent_count || 0),
-    daily_sent_date: input.daily_sent_date || startOfToday().slice(0, 10),
+    daily_sent_date: input.daily_sent_date || currentDateKey(),
     min_seconds_between_messages: Number(input.min_seconds_between_messages || config.defaultMinSecondsBetweenMessages),
     error_cooldown_seconds: Number(input.error_cooldown_seconds || config.defaultErrorCooldownSeconds),
     cooldown_until: input.cooldown_until || null,
@@ -55,7 +60,7 @@ export function normalizeInstance(input) {
 }
 
 export function resetDailyCounterIfNeeded(instance) {
-  const today = startOfToday().slice(0, 10);
+  const today = currentDateKey();
   if (instance.daily_sent_date !== today) {
     instance.daily_sent_date = today;
     instance.daily_sent_count = 0;
