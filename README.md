@@ -113,6 +113,7 @@ DATABASE_URL=postgres://usuario:senha@127.0.0.1:5432/whatsapp_router
 DATABASE_SSL=false
 DATA_FILE=./data/router.json
 DEFAULT_DAILY_LIMIT=50
+ROUTER_TIMEZONE=America/Sao_Paulo
 DEFAULT_MIN_SECONDS_BETWEEN_MESSAGES=60
 DEFAULT_ERROR_COOLDOWN_SECONDS=900
 SEND_TIMEOUT_MS=30000
@@ -134,6 +135,7 @@ Campos importantes:
 | `DATABASE_SSL` | Use `true` quando o PostgreSQL exigir SSL. |
 | `DATA_FILE` | Arquivo JSON usado na V1, no modo `json`, ou como origem da migração. |
 | `DEFAULT_DAILY_LIMIT` | Limite diario padrao por conector. |
+| `ROUTER_TIMEZONE` | Fuso usado para virar o contador diario. Padrao: `America/Sao_Paulo`. |
 | `DEFAULT_MIN_SECONDS_BETWEEN_MESSAGES` | Intervalo minimo padrao entre mensagens por conector. |
 | `DEFAULT_ERROR_COOLDOWN_SECONDS` | Tempo de cooldown quando um provider falha. |
 | `SEND_TIMEOUT_MS` | Timeout de envio para as APIs externas. |

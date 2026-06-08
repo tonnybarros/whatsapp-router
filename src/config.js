@@ -10,6 +10,7 @@ export const config = {
   databaseUrl: process.env.DATABASE_URL || "",
   databaseSsl: ["1", "true", "yes"].includes(String(process.env.DATABASE_SSL || "").toLowerCase()),
   defaultDailyLimit: Number(process.env.DEFAULT_DAILY_LIMIT || 50),
+  timeZone: process.env.ROUTER_TIMEZONE || "America/Sao_Paulo",
   defaultMinSecondsBetweenMessages: Number(process.env.DEFAULT_MIN_SECONDS_BETWEEN_MESSAGES || 60),
   defaultErrorCooldownSeconds: Number(process.env.DEFAULT_ERROR_COOLDOWN_SECONDS || 900),
   sendTimeoutMs: Number(process.env.SEND_TIMEOUT_MS || 30000),
