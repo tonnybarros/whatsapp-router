@@ -86,6 +86,77 @@ function keyPreview(key) {
   return `${key.slice(0, 8)}...${key.slice(-6)}`;
 }
 
+function panelAccessCryptoKey() {
+  return crypto.createHash("sha256").update(String(config.adminKey || "")).digest();
+}
+
+function createPanelAccessToken(workspaceKey, ttlMs = 60 * 1000) {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", panelAccessCryptoKey(), iv);
+  const payload = JSON.stringify({
+    workspace_key: workspaceKey,
+    expires_at: Date.now() + ttlMs
+  });
+  const encrypted = Buffer.concat([cipher.update(payload, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+
+  return {
+    token: [iv, tag, encrypted].map((part) => part.toString("base64url")).join("."),
+    expires_at: new Date(Date.now() + ttlMs).toISOString()
+  };
+}
+
+function readPanelAccessToken(token) {
+  const parts = String(token || "").split(".");
+  if (parts.length !== 3) {
+    throw new Error("token_invalido");
+  }
+
+  const [iv, tag, encrypted] = parts.map((part) => Buffer.from(part, "base64url"));
+  const decipher = crypto.createDecipheriv("aes-256-gcm", panelAccessCryptoKey(), iv);
+  decipher.setAuthTag(tag);
+  const payload = JSON.parse(Buffer.concat([decipher.update(encrypted), decipher.final()]).toString("utf8"));
+
+  if (!payload.workspace_key || Number(payload.expires_at || 0) < Date.now()) {
+    throw new Error("token_expirado");
+  }
+
+  const apiKey = store.findApiKeyByHash(hashSecret(payload.workspace_key));
+  if (!apiKey || apiKey.status === "revoked") {
+    throw new Error("workspace_key_invalida");
+  }
+
+  return payload.workspace_key;
+}
+
+function panelAccessHtml(workspaceKey) {
+  return `<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Abrindo painel...</title>
+  <style>
+    :root { font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #071225; background: #eef6f4; }
+    body { min-height: 100vh; margin: 0; display: grid; place-items: center; }
+    main { width: min(420px, calc(100% - 32px)); background: #fff; border: 1px solid #d8e0ea; border-radius: 8px; padding: 24px; box-shadow: 0 18px 45px rgba(15, 23, 42, .14); }
+    h1 { margin: 0 0 8px; font-size: 22px; }
+    p { margin: 0; color: #64748b; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Abrindo painel V3...</h1>
+    <p>Autenticando workspace com link temporário.</p>
+  </main>
+  <script>
+    localStorage.setItem('routerV3WorkspaceKey', ${JSON.stringify(workspaceKey)});
+    location.replace('/painel');
+  </script>
+</body>
+</html>`;
+}
+
 function maskPhone(phone) {
   const digits = onlyDigits(phone);
   if (digits.length <= 4) return digits;
@@ -787,6 +858,20 @@ app.get("/register", async (_request, reply) => {
   reply.type("text/html").send(registerHtml());
 });
 
+app.get("/painel/acesso", async (request, reply) => {
+  try {
+    const workspaceKey = readPanelAccessToken(request.query?.token);
+    reply.type("text/html").send(panelAccessHtml(workspaceKey));
+  } catch (error) {
+    reply.code(401).type("text/html").send(`<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>Acesso expirado</title></head>
+<body style="font-family:system-ui,sans-serif;padding:32px">
+  <h1>Link expirado</h1>
+  <p>Volte ao Whazap e clique em Abrir gerenciador novamente.</p>
+</body></html>`);
+  }
+});
+
 app.get("/painel", async (_request, reply) => {
   reply.type("text/html").send(portalHtml());
 });
@@ -963,6 +1048,25 @@ app.register(async (admin) => {
       api_key: result.plain,
       item: publicApiKey(result.apiKey)
     });
+  });
+
+  admin.post("/panel-links", async (request, reply) => {
+    const workspaceKey = String(request.body?.workspace_key || "").trim();
+    if (!workspaceKey) return reply.code(422).send({ error: "missing_fields", fields: ["workspace_key"] });
+
+    const apiKey = store.findApiKeyByHash(hashSecret(workspaceKey));
+    const workspace = apiKey ? store.findWorkspace(apiKey.workspace_id) : null;
+    if (!apiKey || !workspace || apiKey.status === "revoked" || workspace.status === "blocked") {
+      return reply.code(404).send({ error: "workspace_key_not_found" });
+    }
+
+    const result = createPanelAccessToken(workspaceKey);
+    return {
+      ok: true,
+      url: `${config.publicBaseUrl}/painel/acesso?token=${encodeURIComponent(result.token)}`,
+      expires_at: result.expires_at,
+      workspace: workspaceSummary(workspace)
+    };
   });
 
   admin.get("/workspaces/:workspaceId/instances", async (request) => {
