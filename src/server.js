@@ -263,6 +263,19 @@ function attemptEntry(instance, status, extra = {}) {
   };
 }
 
+function failedConnectorIds(message) {
+  return new Set([
+    ...(message.failed_connector_ids || []),
+    ...((message.attempts || [])
+      .filter((attempt) => attempt.status === "failed" && attempt.instance_id)
+      .map((attempt) => attempt.instance_id))
+  ]);
+}
+
+function rememberFailedConnector(message, instance) {
+  message.failed_connector_ids = [...new Set([...failedConnectorIds(message), instance.id])];
+}
+
 function buildMessage(body, text, workspaceId, status = "selected") {
   return {
     id: crypto.randomUUID(),
@@ -283,6 +296,7 @@ function buildMessage(body, text, workspaceId, status = "selected") {
     failover: Boolean(body.failover),
     failover_mode: body.failover_mode || "safe",
     attempts: [],
+    failed_connector_ids: [],
     created_at: new Date().toISOString(),
     error: null
   };
@@ -459,7 +473,7 @@ async function reserveSelection(body, connectorId, attemptedIds, queuedAt, optio
 async function deliverMessage(message, body, text, options = {}) {
   body.workspace_id = body.workspace_id || message.workspace_id;
   const connectorId = body.connector_id || body.instance_id || null;
-  const attemptedIds = new Set();
+  const attemptedIds = failedConnectorIds(message);
   let selection = await reserveSelection(body, connectorId, attemptedIds, options.queuedAt || Date.now(), {
     deferWhenWaiting: Boolean(options.deferWhenWaiting)
   });
@@ -531,6 +545,7 @@ async function deliverMessage(message, body, text, options = {}) {
       message.status = "failed";
       message.error = failure;
       message.attempts.push(attemptEntry(instance, "failed", { error: failure }));
+      rememberFailedConnector(message, instance);
 
       await store.save();
       await store.updateMessage(message.id, message);
