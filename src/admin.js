@@ -206,7 +206,7 @@ export function adminHtml() {
                 <option value="processing">Processando</option>
                 <option value="sent">Enviado</option>
                 <option value="failed">Erro</option>
-                <option value="dry_run">Teste</option>
+                <option value="dry_run">Simulado</option>
               </select>
             </div>
           </div>
@@ -260,10 +260,11 @@ export function adminHtml() {
                 <label class="full">Destino <input id="sendTo" required placeholder="5599999999999"></label>
                 <label class="full">Mensagem <textarea id="sendMessage" required>Teste do WhatsApp Router</textarea></label>
                 <label>Origem <input id="sendSource" value="admin"></label>
-                <label>Modo <select id="sendMode"><option value="dry">Teste</option><option value="real">Envio real</option></select></label>
+                <label>Modo <select id="sendMode"><option value="dry">Simular rota (não envia)</option><option value="real">Envio real (envia mensagem)</option></select></label>
                 <div class="full row-actions">
-                  <button class="primary" type="submit">Enviar pelo Conector</button>
+                  <button id="sendSubmitBtn" class="primary" type="submit">Simular rota</button>
                 </div>
+                <p id="sendModeHint" class="full muted">A simulação só escolhe o conector e grava o teste no histórico. Ela não envia WhatsApp.</p>
               </form>
             </div>
 
@@ -556,8 +557,18 @@ export function adminHtml() {
         processing: 'Processando',
         sent: 'Enviado',
         failed: 'Erro',
-        dry_run: 'Teste'
+        dry_run: 'Simulado'
       }[status] || status || '-';
+    }
+
+    function updateSendModeUi() {
+      const isDryRun = $('sendMode')?.value !== 'real';
+      if ($('sendSubmitBtn')) $('sendSubmitBtn').textContent = isDryRun ? 'Simular rota' : 'Enviar mensagem real';
+      if ($('sendModeHint')) {
+        $('sendModeHint').textContent = isDryRun
+          ? 'A simulação só escolhe o conector e grava o teste no histórico. Ela não envia WhatsApp.'
+          : 'Envio real: esta opção dispara a mensagem pelo conector selecionado.';
+      }
     }
 
     function badge(status) {
@@ -708,6 +719,8 @@ export function adminHtml() {
     $('newConnectorTop').onclick = newConnector;
     $('closeConnector').onclick = () => { state.page = 'realtime'; state.formDirty = false; render(); };
     $('messageFilter').onchange = renderGlobalMessages;
+    $('sendMode').onchange = updateSendModeUi;
+    updateSendModeUi();
     $('instanceForm').addEventListener('input', () => { state.formDirty = true; });
     $('instanceForm').addEventListener('change', () => { state.formDirty = true; });
 
@@ -771,11 +784,11 @@ export function adminHtml() {
         dry_run: $('sendMode').value === 'dry',
         instance_id: item.id
       };
-      setNotice('Enviando...', '');
+      setNotice(payload.dry_run ? 'Simulando rota...' : 'Enviando mensagem real...', '');
       try {
         const result = await api('/send', { method: 'POST', body: JSON.stringify(payload) });
         await loadAll();
-        setNotice('Mensagem: ' + statusLabel(result.status) + '.', 'ok');
+        setNotice(payload.dry_run ? 'Simulação concluída. Nenhuma mensagem foi enviada.' : 'Envio real: ' + statusLabel(result.status) + '.', 'ok');
       } catch (error) {
         await loadAll().catch(() => {});
         const latest = state.messages[0];
