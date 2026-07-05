@@ -94,16 +94,22 @@ function isFailoverRetryable(error, body) {
 }
 
 function providerDisconnected(error) {
-  if (error.status !== 503) return false;
+  if (![422, 503].includes(error.status)) return false;
   const message = String(error.data?.message || error.data?.error || "").toLowerCase();
-  return message.includes("disconnected") || message.includes("desconect");
+  const status = String(error.data?.status || "").toLowerCase();
+  const expected = Array.isArray(error.data?.expected)
+    ? error.data.expected.map((item) => String(item).toLowerCase())
+    : [];
+  return message.includes("disconnected")
+    || message.includes("desconect")
+    || (message.includes("session status is not as expected") && status === "failed" && expected.includes("working"));
 }
 
 function providerRejectedBeforeSend(error) {
   if (error.status !== 500) return false;
   const message = String(error.data?.exception?.message || error.data?.exception?.details || error.data?.message || "").toLowerCase();
   const engine = String(error.data?.version?.engine || "").toLowerCase();
-  return engine === "gows" && message.includes("server returned error 400");
+  return engine === "gows" && /server returned error (400|463)/.test(message);
 }
 
 function attemptEntry(instance, status, extra = {}) {
@@ -115,6 +121,19 @@ function attemptEntry(instance, status, extra = {}) {
     at: new Date().toISOString(),
     ...extra
   };
+}
+
+function failedConnectorIds(message) {
+  return new Set([
+    ...(message.failed_connector_ids || []),
+    ...((message.attempts || [])
+      .filter((attempt) => attempt.status === "failed" && attempt.instance_id)
+      .map((attempt) => attempt.instance_id))
+  ]);
+}
+
+function rememberFailedConnector(message, instance) {
+  message.failed_connector_ids = [...new Set([...failedConnectorIds(message), instance.id])];
 }
 
 function buildMessage(body, text, status = "selected") {
@@ -135,6 +154,7 @@ function buildMessage(body, text, status = "selected") {
     failover: Boolean(body.failover),
     failover_mode: body.failover_mode || "safe",
     attempts: [],
+    failed_connector_ids: [],
     created_at: new Date().toISOString(),
     error: null
   };
@@ -253,7 +273,7 @@ async function waitForSelection(body, connectorId, attemptedIds, queuedAt) {
 
 async function deliverMessage(message, body, text, options = {}) {
   const connectorId = body.connector_id || body.instance_id || null;
-  const attemptedIds = new Set();
+  const attemptedIds = failedConnectorIds(message);
   let selection = await waitForSelection(body, connectorId, attemptedIds, options.queuedAt || Date.now());
 
   if (!selection.instance) {
@@ -313,6 +333,7 @@ async function deliverMessage(message, body, text, options = {}) {
       message.status = "failed";
       message.error = failure;
       message.attempts.push(attemptEntry(instance, "failed", { error: failure }));
+      rememberFailedConnector(message, instance);
 
       await store.save();
       await store.updateMessage(message.id, message);
