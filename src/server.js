@@ -249,7 +249,7 @@ function providerRejectedBeforeSend(error) {
   if (error.status !== 500) return false;
   const message = String(error.data?.exception?.message || error.data?.exception?.details || error.data?.message || "").toLowerCase();
   const engine = String(error.data?.version?.engine || "").toLowerCase();
-  return engine === "gows" && message.includes("server returned error 400");
+  return engine === "gows" && /server returned error (400|463)/.test(message);
 }
 
 function attemptEntry(instance, status, extra = {}) {
