@@ -210,15 +210,16 @@ async function sendWaha(instance, payload) {
   } catch (error) {
     const exceptionMessage = String(error.data?.exception?.message || error.data?.exception?.details || error.data?.message || "");
     const engine = String(error.data?.version?.engine || instance.engine || "").toLowerCase();
-    if (engine === "gows" && error.status === 500 && exceptionMessage.toLowerCase().includes("server returned error 400")) {
-      const friendly = new Error("WAHA/GOWS recusou o envio com erro interno 400; usando failover para evitar perda.");
+    const gowsError = exceptionMessage.toLowerCase().match(/server returned error (400|463)/)?.[1];
+    if (engine === "gows" && error.status === 500 && gowsError) {
+      const friendly = new Error(`WAHA/GOWS recusou o envio com erro interno ${gowsError}; usando failover para evitar perda.`);
       friendly.status = 502;
       friendly.retryable = true;
       friendly.data = {
         provider_status: error.status,
         engine: "gows",
         chatId,
-        reason: "server returned error 400"
+        reason: `server returned error ${gowsError}`
       };
       throw friendly;
     }
